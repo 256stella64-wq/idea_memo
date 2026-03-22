@@ -75,39 +75,8 @@ class MemoListScreen extends StatelessWidget {
                       final memo = memos[index];
 
                       return Card(
-                        child: ListTile(
-                          contentPadding: const EdgeInsets.all(12),
-                          title: Text(
-                            memo.title.isEmpty ? '無題' : memo.title,
-                            maxLines: 1,
-                            overflow: TextOverflow.ellipsis,
-                          ),
-                          subtitle: Padding(
-                            padding: const EdgeInsets.only(top: 8),
-                            child: Column(
-                              crossAxisAlignment: CrossAxisAlignment.start,
-                              children: [
-                                Text(
-                                  _memoPreview(memo),
-                                  maxLines: 3,
-                                  overflow: TextOverflow.ellipsis,
-                                ),
-                                const SizedBox(height: 8),
-                                Wrap(
-                                  spacing: 6,
-                                  runSpacing: 6,
-                                  children: [
-                                    ...memo.tags.map((tag) => Chip(label: Text(tag))),
-                                    if (memo.isLocked)
-                                      const Chip(
-                                        avatar: Icon(Icons.lock, size: 16),
-                                        label: Text('ロック中'),
-                                      ),
-                                  ],
-                                ),
-                              ],
-                            ),
-                          ),
+                        child: InkWell(
+                          borderRadius: BorderRadius.circular(12),
                           onTap: () {
                             Navigator.push(
                               context,
@@ -119,22 +88,67 @@ class MemoListScreen extends StatelessWidget {
                               ),
                             );
                           },
-                          trailing: Column(
-                            mainAxisAlignment: MainAxisAlignment.start,
-                            children: [
-                              IconButton(
-                                tooltip: 'ロック切替',
-                                onPressed: () => store.toggleLock(memo.id),
-                                icon: Icon(
-                                  memo.isLocked ? Icons.lock : Icons.lock_open,
+                          child: Padding(
+                            padding: const EdgeInsets.all(12),
+                            child: Row(
+                              crossAxisAlignment: CrossAxisAlignment.start,
+                              children: [
+                                Expanded(
+                                  child: Column(
+                                    crossAxisAlignment: CrossAxisAlignment.start,
+                                    children: [
+                                      Text(
+                                        memo.title.isEmpty ? '無題' : memo.title,
+                                        maxLines: 1,
+                                        overflow: TextOverflow.ellipsis,
+                                        style: Theme.of(context).textTheme.titleMedium,
+                                      ),
+                                      const SizedBox(height: 8),
+                                      Text(
+                                        _memoPreview(memo),
+                                        maxLines: 3,
+                                        overflow: TextOverflow.ellipsis,
+                                      ),
+                                      const SizedBox(height: 8),
+                                      Wrap(
+                                        spacing: 6,
+                                        runSpacing: 6,
+                                        children: [
+                                          ...memo.tags.map((tag) => Chip(label: Text(tag))),
+                                          if (memo.isLocked)
+                                            const Chip(
+                                              avatar: Icon(Icons.lock, size: 16),
+                                              label: Text('ロック中'),
+                                            ),
+                                        ],
+                                      ),
+                                    ],
+                                  ),
                                 ),
-                              ),
-                              IconButton(
-                                tooltip: '削除',
-                                onPressed: () => _confirmDelete(context, memo),
-                                icon: const Icon(Icons.delete_outline),
-                              ),
-                            ],
+                                const SizedBox(width: 12),
+                                SizedBox(
+                                  width: 56,
+                                  child: Column(
+                                    mainAxisSize: MainAxisSize.min,
+                                    children: [
+                                      IconButton(
+                                        tooltip: 'ロック切替',
+                                        onPressed: () => store.toggleLock(memo.id),
+                                        icon: Icon(
+                                          memo.isLocked ? Icons.lock : Icons.lock_open,
+                                        ),
+                                      ),
+                                      const SizedBox(height: 20),
+                                      IconButton(
+                                        tooltip: '削除',
+                                        onPressed: () => _confirmDelete(context, memo),
+                                        icon: const Icon(Icons.delete_outline),
+                                      ),
+                                    ],
+                                  ),
+                                ),
+                              ],
+                            ),
                           ),
                         ),
                       );

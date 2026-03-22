@@ -143,10 +143,6 @@ class _MemoDetailScreenState extends State<MemoDetailScreen> {
             },
             icon: Icon(_memo.isLocked ? Icons.lock : Icons.lock_open),
           ),
-          IconButton(
-            onPressed: _save,
-            icon: const Icon(Icons.save),
-          ),
         ],
       ),
       body: SafeArea(
@@ -189,10 +185,10 @@ class _MemoDetailScreenState extends State<MemoDetailScreen> {
                         onSubmitted: (_) => _addTag(),
                       ),
                     ),
-                    const SizedBox(width: 8),
+                    const SizedBox(width: 16),
                     FilledButton(
                       onPressed: _addTag,
-                      child: const Text('追加'),
+                      child: const Text('タグを追加'),
                     ),
                   ],
                 ),
@@ -209,6 +205,21 @@ class _MemoDetailScreenState extends State<MemoDetailScreen> {
                         ),
                       )
                       .toList(),
+                ),
+                const SizedBox(height: 16),
+                Align(
+                  alignment: Alignment.centerRight,
+                  child: FilledButton.icon(
+                    style: FilledButton.styleFrom(
+                      padding: const EdgeInsets.symmetric(
+                        horizontal: 20,
+                        vertical: 16,
+                      ),
+                    ),
+                    onPressed: _save,
+                    icon: const Icon(Icons.save),
+                    label: const Text('変更を保存'),
+                  ),
                 ),
                 const SizedBox(height: 16),
                 FilledButton.icon(
