@@ -9,10 +9,10 @@ import 'app_store.dart';
 import 'handwriting_input_screen.dart';
 import 'help_screen.dart';
 import 'idea_tools_screen.dart';
-import 'memo_detail_screen.dart';
 import 'notification_service.dart';
 import 'search_screen.dart';
 import 'settings_screen.dart';
+import 'memo_list_screen.dart';
 
 Future<void> main() async {
   WidgetsFlutterBinding.ensureInitialized();
@@ -214,47 +214,21 @@ class _HomeScreenState extends State<HomeScreen> {
     _focusNode.requestFocus();
 
     ScaffoldMessenger.of(context).showSnackBar(
-      const SnackBar(content: Text('メモを保存しました')),
+      SnackBar(
+        content: const Text('メモを保存しました'),
+        action: SnackBarAction(
+          label: '一覧を見る',
+          onPressed: () {
+            Navigator.push(
+              context,
+              MaterialPageRoute(
+                builder: (_) => MemoListScreen(store: widget.store),
+              ),
+            );
+          },
+        ),
+      ),
     );
-  }
-
-  Future<void> _confirmDelete(Memo memo) async {
-    if (memo.isLocked) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('このメモはロックされています')),
-      );
-      return;
-    }
-
-    final ok = await showDialog<bool>(
-      context: context,
-      builder: (context) {
-        return AlertDialog(
-          title: const Text('削除しますか？'),
-          content: const Text('この操作は元に戻せません。'),
-          actions: [
-            TextButton(
-              onPressed: () => Navigator.pop(context, false),
-              child: const Text('キャンセル'),
-            ),
-            FilledButton(
-              onPressed: () => Navigator.pop(context, true),
-              child: const Text('削除'),
-            ),
-          ],
-        );
-      },
-    );
-
-    if (ok == true) {
-      await widget.store.deleteMemo(memo.id);
-    }
-  }
-
-  String _memoPreview(Memo memo) {
-    if (memo.body.isNotEmpty) return memo.body;
-    if (memo.handwritingBase64 != null) return '手書きメモあり';
-    return '';
   }
 
   @override
@@ -262,12 +236,22 @@ class _HomeScreenState extends State<HomeScreen> {
     return AnimatedBuilder(
       animation: widget.store,
       builder: (context, _) {
-        final memos = widget.store.memos;
-
         return Scaffold(
           appBar: AppBar(
             title: const Text('アイデアメモ'),
             actions: [
+              IconButton(
+                onPressed: () {
+                  Navigator.push(
+                    context,
+                    MaterialPageRoute(
+                      builder: (_) => MemoListScreen(store: widget.store),
+                    ),
+                  );
+                },
+                icon: const Icon(Icons.folder_open),
+                tooltip: '保存済みメモ',
+              ),
               IconButton(
                 onPressed: () {
                   Navigator.push(
@@ -315,31 +299,7 @@ class _HomeScreenState extends State<HomeScreen> {
             ],
           ),
           body: SafeArea(
-            child: LayoutBuilder(
-              builder: (context, constraints) {
-                final isWide = constraints.maxWidth >= 900;
-                final form = _buildInputArea(context);
-                final list = _buildMemoList(context, memos);
-
-                if (isWide) {
-                  return Row(
-                    children: [
-                      Expanded(flex: 4, child: form),
-                      const VerticalDivider(width: 1),
-                      Expanded(flex: 5, child: list),
-                    ],
-                  );
-                }
-
-                return Column(
-                  children: [
-                    SizedBox(height: constraints.maxHeight * 0.42, child: form),
-                    const Divider(height: 1),
-                    Expanded(child: list),
-                  ],
-                );
-              },
-            ),
+            child: _buildInputArea(context),
           ),
           floatingActionButton: FloatingActionButton.extended(
             onPressed: _saveMemo,
@@ -468,86 +428,4 @@ class _HomeScreenState extends State<HomeScreen> {
     );
   }
 
-  Widget _buildMemoList(BuildContext context, List<Memo> memos) {
-    if (memos.isEmpty) {
-      return const Center(
-        child: Padding(
-          padding: EdgeInsets.all(24),
-          child: Text('まだメモがありません。上の入力欄から最初のアイデアを書いてみてください。'),
-        ),
-      );
-    }
-
-    return ListView.separated(
-      padding: const EdgeInsets.all(16),
-      itemCount: memos.length,
-      separatorBuilder: (_, __) => const SizedBox(height: 8),
-      itemBuilder: (context, index) {
-        final memo = memos[index];
-
-        return Card(
-          child: ListTile(
-            contentPadding: const EdgeInsets.all(12),
-            title: Text(
-              memo.title.isEmpty ? '無題' : memo.title,
-              maxLines: 1,
-              overflow: TextOverflow.ellipsis,
-            ),
-            subtitle: Padding(
-              padding: const EdgeInsets.only(top: 8),
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Text(
-                    _memoPreview(memo),
-                    maxLines: 3,
-                    overflow: TextOverflow.ellipsis,
-                  ),
-                  const SizedBox(height: 8),
-                  Wrap(
-                    spacing: 6,
-                    runSpacing: 6,
-                    children: [
-                      ...memo.tags.map((tag) => Chip(label: Text(tag))),
-                      if (memo.isLocked)
-                        const Chip(
-                          avatar: Icon(Icons.lock, size: 16),
-                          label: Text('ロック中'),
-                        ),
-                    ],
-                  ),
-                ],
-              ),
-            ),
-            onTap: () {
-              Navigator.push(
-                context,
-                MaterialPageRoute(
-                  builder: (_) => MemoDetailScreen(
-                    memo: memo,
-                    store: widget.store,
-                  ),
-                ),
-              );
-            },
-            trailing: Column(
-              mainAxisAlignment: MainAxisAlignment.start,
-              children: [
-                IconButton(
-                  tooltip: 'ロック切替',
-                  onPressed: () => widget.store.toggleLock(memo.id),
-                  icon: Icon(memo.isLocked ? Icons.lock : Icons.lock_open),
-                ),
-                IconButton(
-                  tooltip: '削除',
-                  onPressed: () => _confirmDelete(memo),
-                  icon: const Icon(Icons.delete_outline),
-                ),
-              ],
-            ),
-          ),
-        );
-      },
-    );
-  }
 }
