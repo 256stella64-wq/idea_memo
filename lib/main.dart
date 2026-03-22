@@ -301,11 +301,7 @@ class _HomeScreenState extends State<HomeScreen> {
           body: SafeArea(
             child: _buildInputArea(context),
           ),
-          floatingActionButton: FloatingActionButton.extended(
-            onPressed: _saveMemo,
-            icon: const Icon(Icons.save),
-            label: const Text('保存'),
-          ),
+          
         );
       },
     );
@@ -319,7 +315,50 @@ class _HomeScreenState extends State<HomeScreen> {
           child: Padding(
             padding: const EdgeInsets.all(16),
             child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
               children: [
+                Align(
+                  alignment: Alignment.centerLeft,
+                  child: TextButton.icon(
+                    style: TextButton.styleFrom(
+                      padding: const EdgeInsets.symmetric(horizontal: 4, vertical: 4),
+                      visualDensity: VisualDensity.compact,
+                    ),
+                    onPressed: () async {
+                      final ok = await showDialog<bool>(
+                        context: context,
+                        builder: (_) => AlertDialog(
+                          title: const Text('下書きを削除しますか？'),
+                          content: const Text('入力中の内容がすべて消えます。'),
+                          actions: [
+                            TextButton(
+                              onPressed: () => Navigator.pop(context, false),
+                              child: const Text('キャンセル'),
+                            ),
+                            FilledButton(
+                              onPressed: () => Navigator.pop(context, true),
+                              child: const Text('削除'),
+                            ),
+                          ],
+                        ),
+                      );
+
+                      if (ok != true) return;
+
+                      _titleController.clear();
+                      _bodyController.clear();
+                      _tagController.clear();
+                      setState(() {
+                        _draftTags = [];
+                        _draftHandwritingBase64 = null;
+                      });
+                      _focusNode.requestFocus();
+                    },
+                    icon: const Icon(Icons.delete_outline, size: 18),
+                    label: const Text('下書きをクリア'),
+                  ),
+                ),
+                const SizedBox(height: 8),
                 TextField(
                   controller: _titleController,
                   decoration: const InputDecoration(
@@ -353,10 +392,10 @@ class _HomeScreenState extends State<HomeScreen> {
                         onSubmitted: (_) => _addTag(),
                       ),
                     ),
-                    const SizedBox(width: 8),
+                    const SizedBox(width: 16),
                     FilledButton(
                       onPressed: _addTag,
-                      child: const Text('追加'),
+                      child: const Text('タグを追加'),
                     ),
                   ],
                 ),
@@ -404,21 +443,22 @@ class _HomeScreenState extends State<HomeScreen> {
                       icon: const Icon(Icons.draw),
                       label: const Text('手書き入力'),
                     ),
-                    OutlinedButton.icon(
-                      onPressed: () {
-                        _titleController.clear();
-                        _bodyController.clear();
-                        _tagController.clear();
-                        setState(() {
-                          _draftTags = [];
-                          _draftHandwritingBase64 = null;
-                        });
-                        _focusNode.requestFocus();
-                      },
-                      icon: const Icon(Icons.refresh),
-                      label: const Text('下書きをクリア'),
-                    ),
                   ],
+                ),
+                const SizedBox(height: 20),
+                Align(
+                  alignment: Alignment.centerRight,
+                  child: FilledButton.icon(
+                    style: FilledButton.styleFrom(
+                      padding: const EdgeInsets.symmetric(
+                        horizontal: 20,
+                        vertical: 16,
+                      ),
+                    ),
+                    onPressed: _saveMemo,
+                    icon: const Icon(Icons.save),
+                    label: const Text('メモを保存'),
+                  ),
                 ),
               ],
             ),
