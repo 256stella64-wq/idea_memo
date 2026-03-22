@@ -280,20 +280,11 @@ class _HomeScreenState extends State<HomeScreen> {
                         ),
                       );
                       break;
-                    case 'ideas':
-                      Navigator.push(
-                        context,
-                        MaterialPageRoute(
-                          builder: (_) => IdeaToolsScreen(store: widget.store),
-                        ),
-                      );
-                      break;
                   }
                 },
                 itemBuilder: (_) => const [
                   PopupMenuItem(value: 'help', child: Text('ヘルプ')),
                   PopupMenuItem(value: 'settings', child: Text('設定')),
-                  PopupMenuItem(value: 'ideas', child: Text('アイデア拡張')),
                 ],
               ),
             ],
@@ -458,6 +449,42 @@ class _HomeScreenState extends State<HomeScreen> {
                     onPressed: _saveMemo,
                     icon: const Icon(Icons.save),
                     label: const Text('メモを保存'),
+                  ),
+                ),
+              ],
+            ),
+          ),
+        ),
+
+        const SizedBox(height: 16),
+        Card(
+          child: Padding(
+            padding: const EdgeInsets.all(16),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  'アイデアに詰まったとき',
+                  style: Theme.of(context).textTheme.titleMedium,
+                ),
+                const SizedBox(height: 8),
+                const Text(
+                  '視点を変えたり、発想を広げたりしたいときに使えます。',
+                ),
+                const SizedBox(height: 16),
+                SizedBox(
+                  width: double.infinity,
+                  child: FilledButton.icon(
+                    onPressed: () {
+                      Navigator.push(
+                        context,
+                        MaterialPageRoute(
+                          builder: (_) => IdeaToolsScreen(store: widget.store),
+                        ),
+                      );
+                    },
+                    icon: const Icon(Icons.lightbulb),
+                    label: const Text('アイデアを広げる'),
                   ),
                 ),
               ],

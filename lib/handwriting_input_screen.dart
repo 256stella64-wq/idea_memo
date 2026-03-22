@@ -121,7 +121,7 @@ class _HandwritingInputScreenState extends State<HandwritingInputScreen> {
           ),
           FilledButton(
             onPressed: () => Navigator.pop(context, true),
-            child: const Text('戻る'),
+            child: const Text('OK'),
           ),
         ],
       ),
@@ -152,73 +152,6 @@ class _HandwritingInputScreenState extends State<HandwritingInputScreen> {
 
     final pngBytes = byteData.buffer.asUint8List();
     Navigator.pop(context, base64Encode(pngBytes));
-  }
-
-  Future<void> _showClearMenu() async {
-    if (!_hasAnyCanvasContent) return;
-
-    final action = await showDialog<String>(
-      context: context,
-      builder: (_) => AlertDialog(
-        title: const Text('消去方法を選択'),
-        content: Column(
-          mainAxisSize: MainAxisSize.min,
-          crossAxisAlignment: CrossAxisAlignment.stretch,
-          children: [
-            const Text('追加描画だけ消すか、キャンバス全体を消すか選んでください。'),
-            const SizedBox(height: 16),
-            if (_strokes.isNotEmpty)
-              Row(
-                children: [
-                  Expanded(
-                    child: OutlinedButton(
-                      onPressed: () => Navigator.pop(context, 'drawing_only'),
-                      child: const Text('追加描画だけ消す'),
-                    ),
-                  ),
-                  const SizedBox(width: 12),
-                  Expanded(
-                    child: FilledButton(
-                      onPressed: () => Navigator.pop(context, 'all'),
-                      child: const Text('全部消す'),
-                    ),
-                  ),
-                ],
-              )
-            else
-              FilledButton(
-                onPressed: () => Navigator.pop(context, 'all'),
-                child: const Text('全部消す'),
-              ),
-            const SizedBox(height: 12),
-            TextButton(
-              onPressed: () => Navigator.pop(context, 'cancel'),
-              child: const Text('キャンセル'),
-            ),
-          ],
-        ),
-      ),
-    );
-
-    if (!mounted || action == null || action == 'cancel') return;
-
-    if (action == 'drawing_only') {
-      setState(() {
-        _strokes.clear();
-        _redoStack.clear();
-        _currentStroke = null;
-      });
-      return;
-    }
-
-    if (action == 'all') {
-      setState(() {
-        _backgroundBytes = null;
-        _strokes.clear();
-        _redoStack.clear();
-        _currentStroke = null;
-      });
-    }
   }
 
   void _undo() {
@@ -527,11 +460,6 @@ class _HandwritingInputScreenState extends State<HandwritingInputScreen> {
               tooltip: 'Redo',
               onPressed: _redoStack.isEmpty ? null : _redo,
               icon: const Icon(Icons.redo),
-            ),
-            IconButton(
-              tooltip: '消去メニュー',
-              onPressed: _hasAnyCanvasContent ? _showClearMenu : null,
-              icon: const Icon(Icons.delete_outline),
             ),
             IconButton(
               tooltip: '保存',
