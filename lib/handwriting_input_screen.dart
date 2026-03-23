@@ -31,6 +31,20 @@ class Stroke {
   final DrawingTool tool;
 }
 
+class CanvasTextBox {
+  CanvasTextBox({
+    required this.id,
+    required this.controller,
+    required this.position,
+    this.width = 220,
+  });
+
+  final String id;
+  final TextEditingController controller;
+  Offset position;
+  double width;
+}
+
 class HandwritingInputScreen extends StatefulWidget {
   const HandwritingInputScreen({super.key, this.initialBase64});
 
@@ -54,6 +68,9 @@ class _HandwritingInputScreenState extends State<HandwritingInputScreen> {
   final List<Stroke> _redoStack = [];
   Stroke? _currentStroke;
 
+  final List<CanvasTextBox> _textBoxes = [];
+  int _textBoxCounter = 0;
+
   CanvasMode _canvasMode = CanvasMode.draw;
   DrawingTool _selectedTool = DrawingTool.pen;
   Color _selectedColor = Colors.black;
@@ -74,11 +91,49 @@ class _HandwritingInputScreenState extends State<HandwritingInputScreen> {
 
   @override
   void dispose() {
+     for (final textBox in _textBoxes) {
+      textBox.controller.dispose();
+    }
     _transformationController.dispose();
     super.dispose();
   }
 
+  void _addTextBox() {
+    setState(() {
+      _textBoxCounter++;
+
+      _textBoxes.add(
+        CanvasTextBox(
+          id: 'textbox_$_textBoxCounter',
+          controller: TextEditingController(),
+          position: Offset(
+            80.0 + (_textBoxCounter * 20) % 200,
+            80.0 + (_textBoxCounter * 20) % 300,
+          ),
+        ),
+      );
+    });
+  }
+
+  void _removeTextBox(String id) {
+    final index = _textBoxes.indexWhere((e) => e.id == id);
+    if (index == -1) return;
+
+    setState(() {
+      _textBoxes[index].controller.dispose();
+      _textBoxes.removeAt(index);
+    });
+  }
+
+  bool _isDraggingTextBox = false;
+
   bool get _hasUnsavedDrawingChanges => _strokes.isNotEmpty;
+
+  bool get _hasUnsavedTextChanges =>
+    _textBoxes.any((textBox) => textBox.controller.text.trim().isNotEmpty);
+
+  bool get _hasUnsavedChanges =>
+    _hasUnsavedDrawingChanges || _hasUnsavedTextChanges;
 
   bool get _hasAnyCanvasContent =>
       _backgroundBytes != null || _strokes.isNotEmpty;
@@ -107,13 +162,13 @@ class _HandwritingInputScreenState extends State<HandwritingInputScreen> {
   }
 
   Future<bool> _confirmDiscardIfNeeded() async {
-    if (!_hasUnsavedDrawingChanges) return true;
+    if (!_hasUnsavedChanges) return true;
 
     final shouldLeave = await showDialog<bool>(
       context: context,
       builder: (_) => AlertDialog(
         title: const Text('保存せずに戻りますか？'),
-        content: const Text('今回の追記内容は保存されません。'),
+        content: const Text('手書きや入力したテキストは保存されません。'),
         actions: [
           TextButton(
             onPressed: () => Navigator.pop(context, false),
@@ -314,6 +369,12 @@ class _HandwritingInputScreenState extends State<HandwritingInputScreen> {
                   icon: const Icon(Icons.center_focus_strong),
                   label: const Text('表示を戻す'),
                 ),
+
+                OutlinedButton.icon(
+                  onPressed: _addTextBox,
+                  icon: const Icon(Icons.text_fields),
+                  label: const Text('テキスト追加'),
+                ),
               ],
             ),
             const SizedBox(height: 10),
@@ -390,8 +451,8 @@ class _HandwritingInputScreenState extends State<HandwritingInputScreen> {
       transformationController: _transformationController,
       minScale: 1.0,
       maxScale: 5.0,
-      panEnabled: _canvasMode == CanvasMode.move,
-      scaleEnabled: _canvasMode == CanvasMode.move,
+      panEnabled: _canvasMode == CanvasMode.move && !_isDraggingTextBox,
+      scaleEnabled: _canvasMode == CanvasMode.move && !_isDraggingTextBox,
       child: RepaintBoundary(
         key: _canvasKey,
         child: SizedBox(
@@ -419,8 +480,89 @@ class _HandwritingInputScreenState extends State<HandwritingInputScreen> {
                   willChange: true,
                 ),
               ),
+              ..._textBoxes.map((textBox) {
+                return Positioned(
+                  key: ValueKey(textBox.id),
+                  left: textBox.position.dx,
+                  top: textBox.position.dy,
+                  child: _buildCanvasTextBox(textBox),
+                );
+              }),
             ],
           ),
+        ),
+      ),
+    );
+  }
+
+  Widget _buildCanvasTextBox(CanvasTextBox textBox) {
+    return GestureDetector(
+      onPanStart: (_) {
+        setState(() {
+          _isDraggingTextBox = true;
+        });
+      },
+      onPanUpdate: (details) {
+        setState(() {
+          final newDx = (textBox.position.dx + details.delta.dx)
+              .clamp(0.0, _canvasWidth - textBox.width);
+          final newDy = (textBox.position.dy + details.delta.dy)
+              .clamp(0.0, _canvasHeight - 120.0);
+
+          textBox.position = Offset(newDx, newDy);
+        });
+      },
+      onPanEnd: (_) {
+        setState(() {
+          _isDraggingTextBox = false;
+        });
+      },
+      onPanCancel: () {
+        setState(() {
+          _isDraggingTextBox = false;
+        });
+      },
+      child: Material(
+        elevation: 4,
+        borderRadius: BorderRadius.circular(12),
+        child: Stack(
+          children: [
+            Container(
+              width: textBox.width,
+              padding: const EdgeInsets.all(8),
+              decoration: BoxDecoration(
+                color: Colors.white.withOpacity(0.95),
+                borderRadius: BorderRadius.circular(12),
+                border: Border.all(color: Colors.grey.shade400),
+              ),
+              child: TextField(
+                controller: textBox.controller,
+                minLines: 1,
+                maxLines: 5,
+                decoration: const InputDecoration(
+                  hintText: 'テキストを入力',
+                  border: InputBorder.none, // ←これでスッキリ
+                  isDense: true,
+                ),
+              ),
+            ),
+
+            Positioned(
+              top: 4,
+              right: 4,
+              child: GestureDetector(
+                onTap: () => _removeTextBox(textBox.id),
+                child: Container(
+                  decoration: BoxDecoration(
+                    color: Colors.black.withOpacity(0.5),
+                    shape: BoxShape.circle,
+                  ),
+                  padding: const EdgeInsets.all(4),
+                  child: const Icon(Icons.close, size: 14, color: Colors.white),
+                ),
+              ),
+            ),
+          ],
         ),
       ),
     );
