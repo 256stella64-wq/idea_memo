@@ -44,7 +44,7 @@ class MemoListScreen extends StatelessWidget {
 
   String _memoPreview(Memo memo) {
     if (memo.body.isNotEmpty) return memo.body;
-    if (memo.handwritingBase64 != null) return '手書きメモあり';
+    if (memo.handwritingPreviewBase64 != null) return '手書きメモあり';
     return '';
   }
 

@@ -25,7 +25,7 @@ class _SearchScreenState extends State<SearchScreen> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      appBar: AppBar(title: const Text('単語検索')),
+      appBar: AppBar(title: const Text('メモ検索')),
       body: SafeArea(
         child: Column(
           children: [

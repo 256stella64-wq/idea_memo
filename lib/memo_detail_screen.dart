@@ -27,6 +27,9 @@ class _MemoDetailScreenState extends State<MemoDetailScreen> {
   late Memo _memo;
   late List<String> _tags;
 
+  late final FocusNode _bodyFocusNode;
+  late final ScrollController _bodyScrollController;
+
   @override
   void initState() {
     super.initState();
@@ -35,6 +38,13 @@ class _MemoDetailScreenState extends State<MemoDetailScreen> {
     _bodyController = TextEditingController(text: _memo.body);
     _tagController = TextEditingController();
     _tags = [..._memo.tags];
+
+    _bodyFocusNode = FocusNode();
+    _bodyScrollController = ScrollController();
+
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      _highlightMatchInBody();
+    });
   }
 
   @override
@@ -42,7 +52,41 @@ class _MemoDetailScreenState extends State<MemoDetailScreen> {
     _titleController.dispose();
     _bodyController.dispose();
     _tagController.dispose();
+    _bodyFocusNode.dispose();
+    _bodyScrollController.dispose();
     super.dispose();
+  }
+
+  void _highlightMatchInBody() {
+    final q = widget.initialHighlight;
+    if (q == null || q.trim().isEmpty) return;
+
+    final body = _bodyController.text;
+    final lowerBody = body.toLowerCase();
+    final lowerQ = q.toLowerCase();
+    final index = lowerBody.indexOf(lowerQ);
+
+    if (index == -1) return;
+
+    _bodyController.selection = TextSelection(
+      baseOffset: index,
+      extentOffset: index + q.length,
+    );
+
+    _bodyFocusNode.requestFocus();
+
+    final textBefore = body.substring(0, index);
+    final lineCountBefore = '\n'.allMatches(textBefore).length;
+    final estimatedOffset = lineCountBefore * 28.0;
+
+    if (_bodyScrollController.hasClients) {
+      _bodyScrollController.jumpTo(
+        estimatedOffset.clamp(
+          0.0,
+          _bodyScrollController.position.maxScrollExtent,
+        ),
+      );
+    }
   }
 
   Future<void> _save() async {
@@ -62,20 +106,28 @@ class _MemoDetailScreenState extends State<MemoDetailScreen> {
   }
 
   Future<void> _editHandwriting() async {
-    final result = await Navigator.push<String?>(
+    final result = await Navigator.push<Map<String, String?>?>(
       context,
       MaterialPageRoute(
         builder: (_) => HandwritingInputScreen(
-          initialBase64: _memo.handwritingBase64,
+          initialDataJson: _memo.handwritingDataJson,
         ),
       ),
     );
 
     if (result == null) return;
+
+    final updated = _memo.copyWith(
+      handwritingDataJson: result['dataJson'],
+      handwritingPreviewBase64: result['previewBase64'],
+      updatedAt: DateTime.now(),
+    );
+
     setState(() {
-      _memo = _memo.copyWith(handwritingBase64: result);
+      _memo = updated;
     });
-    await widget.store.updateMemo(_memo);
+
+    await widget.store.updateMemo(updated);
   }
 
   void _addTag() {
@@ -124,49 +176,9 @@ class _MemoDetailScreenState extends State<MemoDetailScreen> {
     return shouldLeave ?? false;
   }
 
-  Widget _buildHighlightedPreview() {
-    final q = widget.initialHighlight;
-    if (q == null || q.trim().isEmpty) return const SizedBox.shrink();
-
-    final body = _bodyController.text;
-    final lowerBody = body.toLowerCase();
-    final lowerQ = q.toLowerCase();
-    final index = lowerBody.indexOf(lowerQ);
-
-    if (index == -1) return const SizedBox.shrink();
-
-    final before = body.substring(0, index);
-    final match = body.substring(index, index + q.length);
-    final after = body.substring(index + q.length);
-
-    return Card(
-      child: Padding(
-        padding: const EdgeInsets.all(12),
-        child: RichText(
-          text: TextSpan(
-            style: Theme.of(context).textTheme.bodyMedium,
-            children: [
-              const TextSpan(text: '該当箇所: '),
-              TextSpan(text: before),
-              TextSpan(
-                text: match,
-                style: const TextStyle(
-                  fontWeight: FontWeight.bold,
-                  backgroundColor: Colors.yellow,
-                  color: Colors.black,
-                ),
-              ),
-              TextSpan(text: after),
-            ],
-          ),
-        ),
-      ),
-    );
-  }
-
   @override
   Widget build(BuildContext context) {
-    final handwriting = _memo.handwritingBase64;
+    final handwritingPreview = _memo.handwritingPreviewBase64;
 
     return PopScope(
       canPop: false,
@@ -211,7 +223,6 @@ class _MemoDetailScreenState extends State<MemoDetailScreen> {
               return ListView(
                 padding: EdgeInsets.all(horizontalPadding),
                 children: [
-                  _buildHighlightedPreview(),
                   TextField(
                     controller: _titleController,
                     decoration: const InputDecoration(
@@ -222,6 +233,8 @@ class _MemoDetailScreenState extends State<MemoDetailScreen> {
                   const SizedBox(height: 12),
                   TextField(
                     controller: _bodyController,
+                    focusNode: _bodyFocusNode,
+                    scrollController: _bodyScrollController,
                     minLines: 8,
                     maxLines: null,
                     decoration: const InputDecoration(
@@ -285,12 +298,12 @@ class _MemoDetailScreenState extends State<MemoDetailScreen> {
                     icon: const Icon(Icons.draw),
                     label: const Text('手書きメモを編集'),
                   ),
-                  if (handwriting != null) ...[
+                  if (handwritingPreview != null) ...[
                     const SizedBox(height: 12),
                     ClipRRect(
                       borderRadius: BorderRadius.circular(12),
                       child: Image.memory(
-                        base64Decode(handwriting),
+                        base64Decode(handwritingPreview),
                         fit: BoxFit.contain,
                       ),
                     ),

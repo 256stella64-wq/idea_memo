@@ -29,6 +29,35 @@ class Stroke {
   final Color color;
   final double width;
   final DrawingTool tool;
+
+  Map<String, dynamic> toJson() {
+    return {
+      'points': points
+          .map((p) => {'dx': p.dx, 'dy': p.dy})
+          .toList(),
+      'color': color.value,
+      'width': width,
+      'tool': tool.name,
+    };
+  }
+
+  factory Stroke.fromJson(Map<String, dynamic> json) {
+    return Stroke(
+      points: (json['points'] as List)
+          .map(
+            (p) => Offset(
+              (p['dx'] as num).toDouble(),
+              (p['dy'] as num).toDouble(),
+            ),
+          )
+          .toList(),
+      color: Color(json['color'] as int),
+      width: (json['width'] as num).toDouble(),
+      tool: DrawingTool.values.firstWhere(
+        (e) => e.name == json['tool'],
+      ),
+    );
+  }
 }
 
 class CanvasTextBox {
@@ -43,12 +72,37 @@ class CanvasTextBox {
   final TextEditingController controller;
   Offset position;
   double width;
+
+  Map<String, dynamic> toJson() {
+    return {
+      'id': id,
+      'text': controller.text,
+      'dx': position.dx,
+      'dy': position.dy,
+      'width': width,
+    };
+  }
+
+  factory CanvasTextBox.fromJson(Map<String, dynamic> json) {
+    return CanvasTextBox(
+      id: json['id'] as String,
+      controller: TextEditingController(text: json['text'] as String? ?? ''),
+      position: Offset(
+        (json['dx'] as num).toDouble(),
+        (json['dy'] as num).toDouble(),
+      ),
+      width: (json['width'] as num?)?.toDouble() ?? 220,
+    );
+  }
 }
 
 class HandwritingInputScreen extends StatefulWidget {
-  const HandwritingInputScreen({super.key, this.initialBase64});
+  const HandwritingInputScreen({
+    super.key,
+    this.initialDataJson,
+  });
 
-  final String? initialBase64;
+  final String? initialDataJson;
 
   @override
   State<HandwritingInputScreen> createState() => _HandwritingInputScreenState();
@@ -80,12 +134,23 @@ class _HandwritingInputScreenState extends State<HandwritingInputScreen> {
   void initState() {
     super.initState();
 
-    if (widget.initialBase64 != null && widget.initialBase64!.isNotEmpty) {
+    if (widget.initialDataJson != null && widget.initialDataJson!.isNotEmpty) {
       try {
-        _backgroundBytes = base64Decode(widget.initialBase64!);
-      } catch (_) {
-        _backgroundBytes = null;
-      }
+        final decoded = jsonDecode(widget.initialDataJson!) as Map<String, dynamic>;
+
+        final strokes = (decoded['strokes'] as List? ?? [])
+            .map((e) => Stroke.fromJson(Map<String, dynamic>.from(e)))
+            .toList();
+
+        final textBoxes = (decoded['textBoxes'] as List? ?? [])
+            .map((e) => CanvasTextBox.fromJson(Map<String, dynamic>.from(e)))
+            .toList();
+
+        _strokes.addAll(strokes);
+        _textBoxes.addAll(textBoxes);
+
+        _textBoxCounter = _textBoxes.length;
+      } catch (_) {}
     }
   }
 
@@ -136,8 +201,7 @@ class _HandwritingInputScreenState extends State<HandwritingInputScreen> {
     _hasUnsavedDrawingChanges || _hasUnsavedTextChanges;
 
   bool get _hasAnyCanvasContent =>
-      _backgroundBytes != null || _strokes.isNotEmpty;
-
+      _strokes.isNotEmpty || _textBoxes.isNotEmpty;
   Color get _activeStrokeColor {
     switch (_selectedTool) {
       case DrawingTool.eraser:
@@ -191,10 +255,10 @@ class _HandwritingInputScreenState extends State<HandwritingInputScreen> {
       return;
     }
 
-    if (_backgroundBytes != null && _strokes.isEmpty) {
-      Navigator.pop(context, widget.initialBase64);
-      return;
-    }
+    final data = {
+      'strokes': _strokes.map((e) => e.toJson()).toList(),
+      'textBoxes': _textBoxes.map((e) => e.toJson()).toList(),
+    };
 
     final boundary =
         _canvasKey.currentContext?.findRenderObject() as RenderRepaintBoundary?;
@@ -206,7 +270,11 @@ class _HandwritingInputScreenState extends State<HandwritingInputScreen> {
     if (byteData == null || !mounted) return;
 
     final pngBytes = byteData.buffer.asUint8List();
-    Navigator.pop(context, base64Encode(pngBytes));
+
+    Navigator.pop(context, {
+      'dataJson': jsonEncode(data),
+      'previewBase64': base64Encode(pngBytes),
+    });
   }
 
   void _undo() {
@@ -462,12 +530,6 @@ class _HandwritingInputScreenState extends State<HandwritingInputScreen> {
             fit: StackFit.expand,
             children: [
               Container(color: Colors.white),
-              if (_backgroundBytes != null)
-                Image.memory(
-                  _backgroundBytes!,
-                  fit: BoxFit.contain,
-                  filterQuality: FilterQuality.high,
-                ),
               GestureDetector(
                 behavior: HitTestBehavior.opaque,
                 onPanStart: _canvasMode == CanvasMode.draw ? _onPanStart : null,

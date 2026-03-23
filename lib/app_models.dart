@@ -7,7 +7,8 @@ class Memo {
     this.title = '',
     this.tags = const [],
     this.isLocked = false,
-    this.handwritingBase64,
+    this.handwritingDataJson,
+    this.handwritingPreviewBase64,
     required this.createdAt,
     required this.updatedAt,
   });
@@ -17,7 +18,13 @@ class Memo {
   String body;
   List<String> tags;
   bool isLocked;
-  String? handwritingBase64;
+
+  /// 編集用の手書きデータ(JSON)
+  String? handwritingDataJson;
+
+  /// 一覧表示・詳細表示用のプレビュー画像(base64 PNG)
+  String? handwritingPreviewBase64;
+
   DateTime createdAt;
   DateTime updatedAt;
 
@@ -27,7 +34,8 @@ class Memo {
     String? body,
     List<String>? tags,
     bool? isLocked,
-    String? handwritingBase64,
+    String? handwritingDataJson,
+    String? handwritingPreviewBase64,
     DateTime? createdAt,
     DateTime? updatedAt,
   }) {
@@ -35,9 +43,11 @@ class Memo {
       id: id ?? this.id,
       title: title ?? this.title,
       body: body ?? this.body,
-      tags: tags ?? this.tags,
+      tags: tags ?? List<String>.from(this.tags),
       isLocked: isLocked ?? this.isLocked,
-      handwritingBase64: handwritingBase64 ?? this.handwritingBase64,
+      handwritingDataJson: handwritingDataJson ?? this.handwritingDataJson,
+      handwritingPreviewBase64:
+          handwritingPreviewBase64 ?? this.handwritingPreviewBase64,
       createdAt: createdAt ?? this.createdAt,
       updatedAt: updatedAt ?? this.updatedAt,
     );
@@ -50,20 +60,25 @@ class Memo {
       'body': body,
       'tags': tags,
       'isLocked': isLocked,
-      'handwritingBase64': handwritingBase64,
+      'handwritingDataJson': handwritingDataJson,
+      'handwritingPreviewBase64': handwritingPreviewBase64,
       'createdAt': createdAt.toIso8601String(),
       'updatedAt': updatedAt.toIso8601String(),
     };
   }
 
   factory Memo.fromMap(Map<String, dynamic> map) {
+    final legacyBase64 = map['handwritingPreviewBase64'] as String?;
+
     return Memo(
       id: map['id'] as String,
       title: (map['title'] ?? '') as String,
       body: (map['body'] ?? '') as String,
       tags: List<String>.from(map['tags'] ?? const []),
       isLocked: (map['isLocked'] ?? false) as bool,
-      handwritingBase64: map['handwritingBase64'] as String?,
+      handwritingDataJson: map['handwritingDataJson'] as String?,
+      handwritingPreviewBase64:
+          (map['handwritingPreviewBase64'] as String?) ?? legacyBase64,
       createdAt: DateTime.parse(map['createdAt'] as String),
       updatedAt: DateTime.parse(map['updatedAt'] as String),
     );

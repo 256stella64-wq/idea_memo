@@ -86,7 +86,8 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver{
   List<String> _draftTags = [];
   bool _speechReady = false;
   bool _isListening = false;
-  String? _draftHandwritingBase64;
+  String? _draftHandwritingDataJson;
+  String? _draftHandwritingPreviewBase64;
 
   bool _shouldKeepListening = false;
   String _lastRecognizedWords = '';
@@ -94,8 +95,9 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver{
   static const _draftTitleKey = 'home_draft_title';
   static const _draftBodyKey = 'home_draft_body';
   static const _draftTagsKey = 'home_draft_tags';
-  static const _draftHandwritingKey = 'home_draft_handwriting';
-
+  static const _draftHandwritingDataKey = 'home_draft_handwriting_data';
+  static const _draftHandwritingPreviewKey = 'home_draft_handwriting_preview';
+  
   @override
   void initState() {
     super.initState();
@@ -119,7 +121,7 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver{
     return _titleController.text.trim().isNotEmpty ||
         _bodyController.text.trim().isNotEmpty ||
         _draftTags.isNotEmpty ||
-        _draftHandwritingBase64 != null;
+        _draftHandwritingDataJson != null;
   }
 
   void _scheduleDraftSave() {
@@ -139,7 +141,8 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver{
       await prefs.remove(_draftTitleKey);
       await prefs.remove(_draftBodyKey);
       await prefs.remove(_draftTagsKey);
-      await prefs.remove(_draftHandwritingKey);
+      await prefs.remove(_draftHandwritingDataKey);
+      await prefs.remove(_draftHandwritingPreviewKey);
       return;
     }
 
@@ -147,10 +150,19 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver{
     await prefs.setString(_draftBodyKey, body);
     await prefs.setStringList(_draftTagsKey, _draftTags);
 
-    if (_draftHandwritingBase64 != null) {
-      await prefs.setString(_draftHandwritingKey, _draftHandwritingBase64!);
+    if (_draftHandwritingDataJson != null) {
+      await prefs.setString(_draftHandwritingDataKey, _draftHandwritingDataJson!);
     } else {
-      await prefs.remove(_draftHandwritingKey);
+      await prefs.remove(_draftHandwritingDataKey);
+    }
+
+    if (_draftHandwritingPreviewBase64 != null) {
+      await prefs.setString(
+        _draftHandwritingPreviewKey,
+        _draftHandwritingPreviewBase64!,
+      );
+    } else {
+      await prefs.remove(_draftHandwritingPreviewKey);
     }
   }
 
@@ -160,7 +172,8 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver{
     final title = prefs.getString(_draftTitleKey) ?? '';
     final body = prefs.getString(_draftBodyKey) ?? '';
     final tags = prefs.getStringList(_draftTagsKey) ?? <String>[];
-    final handwriting = prefs.getString(_draftHandwritingKey);
+    final handwritingData = prefs.getString(_draftHandwritingDataKey);
+    final handwritingPreview = prefs.getString(_draftHandwritingPreviewKey);
 
     _titleController.text = title;
     _bodyController.text = body;
@@ -168,7 +181,8 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver{
     if (!mounted) return;
     setState(() {
       _draftTags = tags;
-      _draftHandwritingBase64 = handwriting;
+      _draftHandwritingDataJson = handwritingData;
+      _draftHandwritingPreviewBase64 = handwritingPreview;
     });
   }
 
@@ -177,7 +191,8 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver{
     await prefs.remove(_draftTitleKey);
     await prefs.remove(_draftBodyKey);
     await prefs.remove(_draftTagsKey);
-    await prefs.remove(_draftHandwritingKey);
+    await prefs.remove(_draftHandwritingDataKey);
+    await prefs.remove(_draftHandwritingPreviewKey);
   }
 
   Future<void> _initSpeech() async {
@@ -357,38 +372,43 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver{
   }
 
   Future<void> _openHandwriting() async {
-    final result = await Navigator.push<String?>(
+    final result = await Navigator.push<Map<String, String?>?>(
       context,
       MaterialPageRoute(
         builder: (_) => HandwritingInputScreen(
-          initialBase64: _draftHandwritingBase64,
+          initialDataJson: _draftHandwritingDataJson,
         ),
       ),
     );
 
     if (result == null) return;
-    setState(() => _draftHandwritingBase64 = result);
+
+    setState(() {
+      _draftHandwritingDataJson = result['dataJson'];
+      _draftHandwritingPreviewBase64 = result['previewBase64'];
+    });
     _scheduleDraftSave();
   }
 
   Future<void> _saveMemo() async {
     final body = _bodyController.text.trim();
     final title = _titleController.text.trim();
+    final now = DateTime.now();
 
-    if (body.isEmpty && _draftHandwritingBase64 == null) {
+    if (body.isEmpty && _draftHandwritingDataJson == null) {
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(content: Text('本文か手書きのどちらかを入力してください')),
       );
       return;
     }
 
-    final now = DateTime.now();
     final memo = Memo(
       id: now.microsecondsSinceEpoch.toString(),
       title: title,
       body: body,
       tags: [..._draftTags],
-      handwritingBase64: _draftHandwritingBase64,
+      handwritingDataJson: _draftHandwritingDataJson,
+      handwritingPreviewBase64: _draftHandwritingPreviewBase64,
       isLocked: false,
       createdAt: now,
       updatedAt: now,
@@ -402,7 +422,8 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver{
 
     setState(() {
       _draftTags = [];
-      _draftHandwritingBase64 = null;
+      _draftHandwritingDataJson = null;
+      _draftHandwritingPreviewBase64 = null;
     });
 
     await _clearPersistedDraft();
@@ -511,6 +532,7 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver{
                     style: TextButton.styleFrom(
                       padding: const EdgeInsets.symmetric(horizontal: 4, vertical: 4),
                       visualDensity: VisualDensity.compact,
+                      foregroundColor: Colors.red,
                     ),
                     onPressed: () async {
                       final ok = await showDialog<bool>(
@@ -538,7 +560,8 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver{
                       _tagController.clear();
                       setState(() {
                         _draftTags = [];
-                        _draftHandwritingBase64 = null;
+                        _draftHandwritingDataJson = null;
+                        _draftHandwritingPreviewBase64 = null;
                       });
                       await _clearPersistedDraft();
                       _focusNode.requestFocus();
@@ -607,12 +630,12 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver{
                         .toList(),
                   ),
                 ),
-                if (_draftHandwritingBase64 != null) ...[
+                if (_draftHandwritingPreviewBase64 != null) ...[
                   const SizedBox(height: 12),
                   ClipRRect(
                     borderRadius: BorderRadius.circular(12),
                     child: Image.memory(
-                      base64Decode(_draftHandwritingBase64!),
+                      base64Decode(_draftHandwritingPreviewBase64!),
                       height: 120,
                       fit: BoxFit.contain,
                     ),
