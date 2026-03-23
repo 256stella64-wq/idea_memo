@@ -3,6 +3,7 @@ import 'dart:convert';
 
 import 'package:flutter/material.dart';
 import 'package:speech_to_text/speech_to_text.dart';
+import 'package:shared_preferences/shared_preferences.dart';
 
 import 'app_models.dart';
 import 'app_store.dart';
@@ -75,7 +76,7 @@ class HomeScreen extends StatefulWidget {
   State<HomeScreen> createState() => _HomeScreenState();
 }
 
-class _HomeScreenState extends State<HomeScreen> {
+class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver{
   final _titleController = TextEditingController();
   final _bodyController = TextEditingController();
   final _tagController = TextEditingController();
@@ -87,17 +88,122 @@ class _HomeScreenState extends State<HomeScreen> {
   bool _isListening = false;
   String? _draftHandwritingBase64;
 
+  bool _shouldKeepListening = false;
+  String _lastRecognizedWords = '';
+
+  static const _draftTitleKey = 'home_draft_title';
+  static const _draftBodyKey = 'home_draft_body';
+  static const _draftTagsKey = 'home_draft_tags';
+  static const _draftHandwritingKey = 'home_draft_handwriting';
+
   @override
   void initState() {
     super.initState();
+    WidgetsBinding.instance.addObserver(this);
+
+    _restoreDraft();
+
+    _titleController.addListener(_scheduleDraftSave);
+    _bodyController.addListener(_scheduleDraftSave);
+    _tagController.addListener(_scheduleDraftSave);
+
     scheduleMicrotask(() {
       if (mounted) _focusNode.requestFocus();
     });
     _initSpeech();
   }
 
+  Timer? _draftSaveDebounce;
+
+  bool get _hasDraftContent {
+    return _titleController.text.trim().isNotEmpty ||
+        _bodyController.text.trim().isNotEmpty ||
+        _draftTags.isNotEmpty ||
+        _draftHandwritingBase64 != null;
+  }
+
+  void _scheduleDraftSave() {
+    _draftSaveDebounce?.cancel();
+    _draftSaveDebounce = Timer(const Duration(milliseconds: 500), () {
+      _persistDraft();
+    });
+  }
+
+  Future<void> _persistDraft() async {
+    final prefs = await SharedPreferences.getInstance();
+
+    final title = _titleController.text.trim();
+    final body = _bodyController.text.trim();
+
+    if (!_hasDraftContent) {
+      await prefs.remove(_draftTitleKey);
+      await prefs.remove(_draftBodyKey);
+      await prefs.remove(_draftTagsKey);
+      await prefs.remove(_draftHandwritingKey);
+      return;
+    }
+
+    await prefs.setString(_draftTitleKey, title);
+    await prefs.setString(_draftBodyKey, body);
+    await prefs.setStringList(_draftTagsKey, _draftTags);
+
+    if (_draftHandwritingBase64 != null) {
+      await prefs.setString(_draftHandwritingKey, _draftHandwritingBase64!);
+    } else {
+      await prefs.remove(_draftHandwritingKey);
+    }
+  }
+
+  Future<void> _restoreDraft() async {
+    final prefs = await SharedPreferences.getInstance();
+
+    final title = prefs.getString(_draftTitleKey) ?? '';
+    final body = prefs.getString(_draftBodyKey) ?? '';
+    final tags = prefs.getStringList(_draftTagsKey) ?? <String>[];
+    final handwriting = prefs.getString(_draftHandwritingKey);
+
+    _titleController.text = title;
+    _bodyController.text = body;
+
+    if (!mounted) return;
+    setState(() {
+      _draftTags = tags;
+      _draftHandwritingBase64 = handwriting;
+    });
+  }
+
+  Future<void> _clearPersistedDraft() async {
+    final prefs = await SharedPreferences.getInstance();
+    await prefs.remove(_draftTitleKey);
+    await prefs.remove(_draftBodyKey);
+    await prefs.remove(_draftTagsKey);
+    await prefs.remove(_draftHandwritingKey);
+  }
+
   Future<void> _initSpeech() async {
-    final available = await _speech.initialize();
+    final available = await _speech.initialize(
+      onStatus: (status) {
+        if (!mounted) return;
+
+        if (status == 'notListening' || status == 'done') {
+          if (_shouldKeepListening) {
+            _restartListeningIfNeeded();
+          } else {
+            setState(() => _isListening = false);
+          }
+        }
+      },
+      onError: (error) {
+        if (!mounted) return;
+
+        if (_shouldKeepListening) {
+          _restartListeningIfNeeded();
+        } else {
+          setState(() => _isListening = false);
+        }
+      },
+    );
+
     if (!mounted) return;
     setState(() {
       _speechReady = available;
@@ -105,7 +211,20 @@ class _HomeScreenState extends State<HomeScreen> {
   }
 
   @override
+  void didChangeAppLifecycleState(AppLifecycleState state) {
+    if (state == AppLifecycleState.inactive ||
+        state == AppLifecycleState.paused ||
+        state == AppLifecycleState.detached) {
+      _persistDraft();
+    }
+  }
+
+  @override
   void dispose() {
+    WidgetsBinding.instance.removeObserver(this);
+    _draftSaveDebounce?.cancel();
+    _persistDraft();
+    _speech.stop();
     _titleController.dispose();
     _bodyController.dispose();
     _tagController.dispose();
@@ -118,11 +237,12 @@ class _HomeScreenState extends State<HomeScreen> {
     if (value.isEmpty) return;
     if (!_draftTags.contains(value)) {
       setState(() => _draftTags.add(value));
+      _scheduleDraftSave();
     }
     _tagController.clear();
   }
 
-  Future<void> _toggleSpeech() async {
+  Future<void> _startListening() async {
     if (!_speechReady) {
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(content: Text('音声入力が利用できません')),
@@ -130,36 +250,110 @@ class _HomeScreenState extends State<HomeScreen> {
       return;
     }
 
-    if (_isListening) {
-      await _speech.stop();
-      if (!mounted) return;
-      setState(() => _isListening = false);
-      return;
-    }
+    _shouldKeepListening = true;
+    _lastRecognizedWords = '';
 
+    if (!mounted) return;
     setState(() => _isListening = true);
 
     await _speech.listen(
       localeId: 'ja_JP',
+      listenFor: const Duration(minutes: 5),
+      pauseFor: const Duration(seconds: 8),
+      partialResults: true,
+      cancelOnError: false,
       onResult: (result) {
-        final current = _bodyController.text.trimRight();
         final recognized = result.recognizedWords.trim();
         if (recognized.isEmpty) return;
 
-        final next = current.isEmpty ? recognized : '$current $recognized';
-        _bodyController.value = TextEditingValue(
-          text: next,
-          selection: TextSelection.collapsed(offset: next.length),
-        );
+        if (result.finalResult) {
+          String textToAdd = recognized;
+
+          if (_lastRecognizedWords.isNotEmpty &&
+              recognized.startsWith(_lastRecognizedWords)) {
+            textToAdd = recognized.substring(_lastRecognizedWords.length).trim();
+          }
+
+          if (textToAdd.isNotEmpty) {
+            final current = _bodyController.text.trimRight();
+            final next = current.isEmpty ? textToAdd : '$current $textToAdd';
+
+            _bodyController.value = TextEditingValue(
+              text: next,
+              selection: TextSelection.collapsed(offset: next.length),
+            );
+          }
+
+          _lastRecognizedWords = '';
+        } else {
+          _lastRecognizedWords = recognized;
+        }
       },
-      listenFor: const Duration(seconds: 30),
-      pauseFor: const Duration(seconds: 5),
+    );
+  }
+
+  Future<void> _stopListening() async {
+    _shouldKeepListening = false;
+    _lastRecognizedWords = '';
+    await _speech.stop();
+
+    if (!mounted) return;
+    setState(() => _isListening = false);
+  }
+
+  Future<void> _restartListeningIfNeeded() async {
+    if (!_shouldKeepListening) return;
+
+    await Future.delayed(const Duration(milliseconds: 300));
+    if (!_shouldKeepListening || !mounted) return;
+
+    if (_speech.isListening) return;
+
+    await _speech.listen(
+      localeId: 'ja_JP',
+      listenFor: const Duration(minutes: 5),
+      pauseFor: const Duration(seconds: 8),
+      partialResults: true,
+      cancelOnError: false,
+      onResult: (result) {
+        final recognized = result.recognizedWords.trim();
+        if (recognized.isEmpty) return;
+
+        if (result.finalResult) {
+          String textToAdd = recognized;
+
+          if (_lastRecognizedWords.isNotEmpty &&
+              recognized.startsWith(_lastRecognizedWords)) {
+            textToAdd = recognized.substring(_lastRecognizedWords.length).trim();
+          }
+
+          if (textToAdd.isNotEmpty) {
+            final current = _bodyController.text.trimRight();
+            final next = current.isEmpty ? textToAdd : '$current $textToAdd';
+
+            _bodyController.value = TextEditingValue(
+              text: next,
+              selection: TextSelection.collapsed(offset: next.length),
+            );
+          }
+
+          _lastRecognizedWords = '';
+        } else {
+          _lastRecognizedWords = recognized;
+        }
+      },
     );
 
-    Future.delayed(const Duration(seconds: 31), () {
-      if (!mounted) return;
-      setState(() => _isListening = false);
-    });
+    if (!mounted) return;
+    setState(() => _isListening = true);
+  }
+
+  Future<void> _toggleSpeech() async {
+    if (_isListening) {
+      await _stopListening();
+    } else {
+      await _startListening();
+    }
   }
 
   Future<void> _openHandwriting() async {
@@ -174,6 +368,7 @@ class _HomeScreenState extends State<HomeScreen> {
 
     if (result == null) return;
     setState(() => _draftHandwritingBase64 = result);
+    _scheduleDraftSave();
   }
 
   Future<void> _saveMemo() async {
@@ -209,6 +404,8 @@ class _HomeScreenState extends State<HomeScreen> {
       _draftTags = [];
       _draftHandwritingBase64 = null;
     });
+
+    await _clearPersistedDraft();
 
     if (!mounted) return;
     _focusNode.requestFocus();
@@ -343,6 +540,7 @@ class _HomeScreenState extends State<HomeScreen> {
                         _draftTags = [];
                         _draftHandwritingBase64 = null;
                       });
+                      await _clearPersistedDraft();
                       _focusNode.requestFocus();
                     },
                     icon: const Icon(Icons.delete_outline, size: 18),
@@ -402,6 +600,7 @@ class _HomeScreenState extends State<HomeScreen> {
                             label: Text(tag),
                             onDeleted: () {
                               setState(() => _draftTags.remove(tag));
+                              _scheduleDraftSave();
                             },
                           ),
                         )

@@ -55,6 +55,7 @@ class _MemoDetailScreenState extends State<MemoDetailScreen> {
     await widget.store.updateMemo(updated);
     if (!mounted) return;
     setState(() => _memo = updated);
+    FocusScope.of(context).unfocus();
     ScaffoldMessenger.of(context).showSnackBar(
       const SnackBar(content: Text('保存しました')),
     );
@@ -84,6 +85,43 @@ class _MemoDetailScreenState extends State<MemoDetailScreen> {
       setState(() => _tags.add(value));
     }
     _tagController.clear();
+  }
+
+  bool get _hasUnsavedChanges {
+    final currentTitle = _titleController.text.trim();
+    final currentBody = _bodyController.text.trim();
+
+    final sameTags =
+        _tags.length == _memo.tags.length &&
+        _tags.every((tag) => _memo.tags.contains(tag));
+
+    return currentTitle != _memo.title ||
+        currentBody != _memo.body ||
+        !sameTags;
+  }
+
+  Future<bool> _confirmDiscardIfNeeded() async {
+    if (!_hasUnsavedChanges) return true;
+
+    final shouldLeave = await showDialog<bool>(
+      context: context,
+      builder: (_) => AlertDialog(
+        title: const Text('保存せずに戻りますか？'),
+        content: const Text('編集した内容は保存されません。'),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(context, false),
+            child: const Text('キャンセル'),
+          ),
+          FilledButton(
+            onPressed: () => Navigator.pop(context, true),
+            child: const Text('OK'),
+          ),
+        ],
+      ),
+    );
+
+    return shouldLeave ?? false;
   }
 
   Widget _buildHighlightedPreview() {
@@ -130,116 +168,137 @@ class _MemoDetailScreenState extends State<MemoDetailScreen> {
   Widget build(BuildContext context) {
     final handwriting = _memo.handwritingBase64;
 
-    return Scaffold(
-      appBar: AppBar(
-        title: const Text('メモ詳細'),
-        actions: [
-          IconButton(
-            onPressed: () async {
-              await widget.store.toggleLock(_memo.id);
-              final refreshed = widget.store.memos.firstWhere((e) => e.id == _memo.id);
-              if (!mounted) return;
-              setState(() => _memo = refreshed);
-            },
-            icon: Icon(_memo.isLocked ? Icons.lock : Icons.lock_open),
-          ),
-        ],
-      ),
-      body: SafeArea(
-        child: LayoutBuilder(
-          builder: (context, constraints) {
-            final horizontalPadding = constraints.maxWidth > 700 ? 32.0 : 16.0;
+    return PopScope(
+      canPop: false,
+      onPopInvoked: (didPop) async {
+        if (didPop) return;
 
-            return ListView(
-              padding: EdgeInsets.all(horizontalPadding),
-              children: [
-                _buildHighlightedPreview(),
-                TextField(
-                  controller: _titleController,
-                  decoration: const InputDecoration(
-                    labelText: 'タイトル（あとからでもOK）',
-                    border: OutlineInputBorder(),
-                  ),
-                ),
-                const SizedBox(height: 12),
-                TextField(
-                  controller: _bodyController,
-                  minLines: 8,
-                  maxLines: null,
-                  decoration: const InputDecoration(
-                    labelText: '本文',
-                    alignLabelWithHint: true,
-                    border: OutlineInputBorder(),
-                  ),
-                ),
-                const SizedBox(height: 12),
-                Row(
-                  children: [
-                    Expanded(
-                      child: TextField(
-                        controller: _tagController,
-                        decoration: const InputDecoration(
-                          labelText: 'タグ追加',
-                          border: OutlineInputBorder(),
-                        ),
-                        onSubmitted: (_) => _addTag(),
-                      ),
+        final shouldLeave = await _confirmDiscardIfNeeded();
+        if (!mounted || !shouldLeave) return;
+
+        Navigator.pop(context);
+      },
+      child: Scaffold(
+        appBar: AppBar(
+          title: const Text('メモ詳細'),
+          leading: IconButton(
+            icon: const Icon(Icons.arrow_back),
+            onPressed: () async {
+              final shouldLeave = await _confirmDiscardIfNeeded();
+              if (!mounted || !shouldLeave) return;
+              Navigator.pop(context);
+            },
+          ),
+          actions: [
+            IconButton(
+              onPressed: () async {
+                await widget.store.toggleLock(_memo.id);
+                final refreshed =
+                    widget.store.memos.firstWhere((e) => e.id == _memo.id);
+                if (!mounted) return;
+                setState(() => _memo = refreshed);
+              },
+              icon: Icon(_memo.isLocked ? Icons.lock : Icons.lock_open),
+            ),
+          ],
+        ),
+        body: SafeArea(
+          child: LayoutBuilder(
+            builder: (context, constraints) {
+              final horizontalPadding =
+                  constraints.maxWidth > 700 ? 32.0 : 16.0;
+
+              return ListView(
+                padding: EdgeInsets.all(horizontalPadding),
+                children: [
+                  _buildHighlightedPreview(),
+                  TextField(
+                    controller: _titleController,
+                    decoration: const InputDecoration(
+                      labelText: 'タイトル（あとからでもOK）',
+                      border: OutlineInputBorder(),
                     ),
-                    const SizedBox(width: 16),
-                    FilledButton(
-                      onPressed: _addTag,
-                      child: const Text('タグを追加'),
+                  ),
+                  const SizedBox(height: 12),
+                  TextField(
+                    controller: _bodyController,
+                    minLines: 8,
+                    maxLines: null,
+                    decoration: const InputDecoration(
+                      labelText: '本文',
+                      alignLabelWithHint: true,
+                      border: OutlineInputBorder(),
+                    ),
+                  ),
+                  const SizedBox(height: 12),
+                  Row(
+                    children: [
+                      Expanded(
+                        child: TextField(
+                          controller: _tagController,
+                          decoration: const InputDecoration(
+                            labelText: 'タグ追加',
+                            border: OutlineInputBorder(),
+                          ),
+                          onSubmitted: (_) => _addTag(),
+                        ),
+                      ),
+                      const SizedBox(width: 16),
+                      FilledButton(
+                        onPressed: _addTag,
+                        child: const Text('タグを追加'),
+                      ),
+                    ],
+                  ),
+                  const SizedBox(height: 8),
+                  Wrap(
+                    spacing: 8,
+                    children: _tags
+                        .map(
+                          (tag) => Chip(
+                            label: Text(tag),
+                            onDeleted: () {
+                              setState(() => _tags.remove(tag));
+                            },
+                          ),
+                        )
+                        .toList(),
+                  ),
+                  const SizedBox(height: 16),
+                  Align(
+                    alignment: Alignment.centerRight,
+                    child: FilledButton.icon(
+                      style: FilledButton.styleFrom(
+                        padding: const EdgeInsets.symmetric(
+                          horizontal: 20,
+                          vertical: 16,
+                        ),
+                      ),
+                      onPressed: _save,
+                      icon: const Icon(Icons.save),
+                      label: const Text('変更を保存'),
+                    ),
+                  ),
+                  const SizedBox(height: 16),
+                  FilledButton.icon(
+                    onPressed: _editHandwriting,
+                    icon: const Icon(Icons.draw),
+                    label: const Text('手書きメモを編集'),
+                  ),
+                  if (handwriting != null) ...[
+                    const SizedBox(height: 12),
+                    ClipRRect(
+                      borderRadius: BorderRadius.circular(12),
+                      child: Image.memory(
+                        base64Decode(handwriting),
+                        fit: BoxFit.contain,
+                      ),
                     ),
                   ],
-                ),
-                const SizedBox(height: 8),
-                Wrap(
-                  spacing: 8,
-                  children: _tags
-                      .map(
-                        (tag) => Chip(
-                          label: Text(tag),
-                          onDeleted: () {
-                            setState(() => _tags.remove(tag));
-                          },
-                        ),
-                      )
-                      .toList(),
-                ),
-                const SizedBox(height: 16),
-                Align(
-                  alignment: Alignment.centerRight,
-                  child: FilledButton.icon(
-                    style: FilledButton.styleFrom(
-                      padding: const EdgeInsets.symmetric(
-                        horizontal: 20,
-                        vertical: 16,
-                      ),
-                    ),
-                    onPressed: _save,
-                    icon: const Icon(Icons.save),
-                    label: const Text('変更を保存'),
-                  ),
-                ),
-                const SizedBox(height: 16),
-                FilledButton.icon(
-                  onPressed: _editHandwriting,
-                  icon: const Icon(Icons.draw),
-                  label: const Text('手書きメモを編集'),
-                ),
-                if (handwriting != null) ...[
-                  const SizedBox(height: 12),
-                  ClipRRect(
-                    borderRadius: BorderRadius.circular(12),
-                    child: Image.memory(
-                      base64Decode(handwriting),
-                      fit: BoxFit.contain,
-                    ),
-                  ),
                 ],
-              ],
-            );
-          },
+              );
+            },
+          ),
         ),
       ),
     );
