@@ -202,6 +202,9 @@ class _HandwritingInputScreenState extends State<HandwritingInputScreen> {
 
   bool get _hasAnyCanvasContent =>
       _strokes.isNotEmpty || _textBoxes.isNotEmpty;
+  
+  bool _isToolbarExpanded = true;
+
   Color get _activeStrokeColor {
     switch (_selectedTool) {
       case DrawingTool.eraser:
@@ -402,114 +405,157 @@ class _HandwritingInputScreenState extends State<HandwritingInputScreen> {
   }
 
   Widget _buildToolbar(BuildContext context) {
-    return Material(
-      color: Theme.of(context).colorScheme.surfaceContainerHighest,
-      elevation: 1,
-      child: Padding(
-        padding: const EdgeInsets.fromLTRB(12, 10, 12, 10),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Wrap(
-              spacing: 8,
-              runSpacing: 8,
-              children: [
-                _buildToolChip(
-                  label: '描画',
-                  selected: _canvasMode == CanvasMode.draw,
-                  onTap: () {
-                    setState(() {
-                      _canvasMode = CanvasMode.draw;
-                    });
-                  },
-                ),
-                _buildToolChip(
-                  label: '移動/拡大',
-                  selected: _canvasMode == CanvasMode.move,
-                  onTap: () {
-                    setState(() {
-                      _canvasMode = CanvasMode.move;
-                    });
-                  },
-                ),
-                OutlinedButton.icon(
-                  onPressed: _resetZoom,
-                  icon: const Icon(Icons.center_focus_strong),
-                  label: const Text('表示を戻す'),
-                ),
+    final theme = Theme.of(context);
 
-                OutlinedButton.icon(
-                  onPressed: _addTextBox,
-                  icon: const Icon(Icons.text_fields),
-                  label: const Text('テキスト追加'),
-                ),
-              ],
+    return Material(
+      color: theme.colorScheme.surfaceContainerHighest,
+      elevation: 1,
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: [
+          InkWell(
+            onTap: () {
+              setState(() {
+                _isToolbarExpanded = !_isToolbarExpanded;
+              });
+            },
+            child: Padding(
+              padding: const EdgeInsets.fromLTRB(12, 10, 12, 10),
+              child: Row(
+                children: [
+                  Icon(
+                    _isToolbarExpanded
+                        ? Icons.keyboard_arrow_up
+                        : Icons.keyboard_arrow_down,
+                  ),
+                  const SizedBox(width: 8),
+                  Expanded(
+                    child: Text(
+                      'ツールバー',
+                      style: theme.textTheme.titleMedium,
+                    ),
+                  ),
+                  Text(
+                    _canvasMode == CanvasMode.draw ? '描画モード' : '移動/拡大モード',
+                    style: theme.textTheme.bodySmall,
+                  ),
+                ],
+              ),
             ),
-            const SizedBox(height: 10),
-            Wrap(
-              spacing: 8,
-              runSpacing: 8,
-              children: [
-                _buildToolChip(
-                  label: 'ペン',
-                  selected: _selectedTool == DrawingTool.pen,
-                  onTap: () => _setTool(DrawingTool.pen),
-                ),
-                _buildToolChip(
-                  label: 'マーカー',
-                  selected: _selectedTool == DrawingTool.marker,
-                  onTap: () => _setTool(DrawingTool.marker),
-                ),
-                _buildToolChip(
-                  label: 'えんぴつ',
-                  selected: _selectedTool == DrawingTool.pencil,
-                  onTap: () => _setTool(DrawingTool.pencil),
-                ),
-                _buildToolChip(
-                  label: '消しゴム',
-                  selected: _selectedTool == DrawingTool.eraser,
-                  onTap: () => _setTool(DrawingTool.eraser),
-                ),
-              ],
+          ),
+          AnimatedCrossFade(
+            duration: const Duration(milliseconds: 200),
+            crossFadeState: _isToolbarExpanded
+                ? CrossFadeState.showFirst
+                : CrossFadeState.showSecond,
+            firstChild: Padding(
+              padding: const EdgeInsets.fromLTRB(12, 0, 12, 10),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Wrap(
+                    spacing: 8,
+                    runSpacing: 8,
+                    children: [
+                      _buildToolChip(
+                        label: '描画',
+                        selected: _canvasMode == CanvasMode.draw,
+                        onTap: () {
+                          setState(() {
+                            _canvasMode = CanvasMode.draw;
+                          });
+                        },
+                      ),
+                      _buildToolChip(
+                        label: '移動/拡大',
+                        selected: _canvasMode == CanvasMode.move,
+                        onTap: () {
+                          setState(() {
+                            _canvasMode = CanvasMode.move;
+                          });
+                        },
+                      ),
+                      OutlinedButton.icon(
+                        onPressed: _resetZoom,
+                        icon: const Icon(Icons.center_focus_strong),
+                        label: const Text('表示を戻す'),
+                      ),
+                      OutlinedButton.icon(
+                        onPressed: _addTextBox,
+                        icon: const Icon(Icons.text_fields),
+                        label: const Text('テキスト追加'),
+                      ),
+                    ],
+                  ),
+                  const SizedBox(height: 10),
+                  Wrap(
+                    spacing: 8,
+                    runSpacing: 8,
+                    children: [
+                      _buildToolChip(
+                        label: 'ペン',
+                        selected: _selectedTool == DrawingTool.pen,
+                        onTap: () => _setTool(DrawingTool.pen),
+                      ),
+                      _buildToolChip(
+                        label: 'マーカー',
+                        selected: _selectedTool == DrawingTool.marker,
+                        onTap: () => _setTool(DrawingTool.marker),
+                      ),
+                      _buildToolChip(
+                        label: 'えんぴつ',
+                        selected: _selectedTool == DrawingTool.pencil,
+                        onTap: () => _setTool(DrawingTool.pencil),
+                      ),
+                      _buildToolChip(
+                        label: '消しゴム',
+                        selected: _selectedTool == DrawingTool.eraser,
+                        onTap: () => _setTool(DrawingTool.eraser),
+                      ),
+                    ],
+                  ),
+                  const SizedBox(height: 10),
+                  Wrap(
+                    spacing: 10,
+                    runSpacing: 10,
+                    crossAxisAlignment: WrapCrossAlignment.center,
+                    children: [
+                      const Text('色'),
+                      _buildColorButton(Colors.black),
+                      _buildColorButton(Colors.red),
+                      _buildColorButton(Colors.blue),
+                      _buildColorButton(Colors.green),
+                      _buildColorButton(Colors.orange),
+                      const SizedBox(width: 8),
+                      const Text('太さ'),
+                      DropdownButton<double>(
+                        value: _selectedWidth,
+                        items: const [
+                          DropdownMenuItem<double>(value: 2.0, child: Text('細')),
+                          DropdownMenuItem<double>(value: 4.0, child: Text('中')),
+                          DropdownMenuItem<double>(value: 8.0, child: Text('太')),
+                          DropdownMenuItem<double>(value: 12.0, child: Text('極太')),
+                        ],
+                        onChanged: (value) {
+                          if (value == null) return;
+                          _setWidth(value);
+                        },
+                      ),
+                    ],
+                  ),
+                  const SizedBox(height: 8),
+                  Text(
+                    _canvasMode == CanvasMode.draw
+                        ? '描画モードです。1本指で書けます。'
+                        : '移動/拡大モードです。ドラッグで移動、ピンチで拡大縮小できます。',
+                    style: theme.textTheme.bodySmall,
+                  ),
+                ],
+              ),
             ),
-            const SizedBox(height: 10),
-            Wrap(
-              spacing: 10,
-              runSpacing: 10,
-              crossAxisAlignment: WrapCrossAlignment.center,
-              children: [
-                const Text('色'),
-                _buildColorButton(Colors.black),
-                _buildColorButton(Colors.red),
-                _buildColorButton(Colors.blue),
-                _buildColorButton(Colors.green),
-                _buildColorButton(Colors.orange),
-                const SizedBox(width: 8),
-                const Text('太さ'),
-                DropdownButton<double>(
-                  value: _selectedWidth,
-                  items: const [
-                    DropdownMenuItem<double>(value: 2.0, child: Text('細')),
-                    DropdownMenuItem<double>(value: 4.0, child: Text('中')),
-                    DropdownMenuItem<double>(value: 8.0, child: Text('太')),
-                    DropdownMenuItem<double>(value: 12.0, child: Text('極太')),
-                  ],
-                  onChanged: (value) {
-                    if (value == null) return;
-                    _setWidth(value);
-                  },
-                ),
-              ],
-            ),
-            const SizedBox(height: 8),
-            Text(
-              _canvasMode == CanvasMode.draw
-                  ? '描画モードです。1本指で書けます。'
-                  : '移動/拡大モードです。ドラッグで移動、ピンチで拡大縮小できます。',
-              style: Theme.of(context).textTheme.bodySmall,
-            ),
-          ],
-        ),
+            secondChild: const SizedBox.shrink(),
+          ),
+        ],
       ),
     );
   }
