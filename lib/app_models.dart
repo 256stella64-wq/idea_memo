@@ -18,13 +18,8 @@ class Memo {
   String body;
   List<String> tags;
   bool isLocked;
-
-  /// 編集用の手書きデータ(JSON)
   String? handwritingDataJson;
-
-  /// 一覧表示・詳細表示用のプレビュー画像(base64 PNG)
   String? handwritingPreviewBase64;
-
   DateTime createdAt;
   DateTime updatedAt;
 
@@ -58,33 +53,63 @@ class Memo {
       'id': id,
       'title': title,
       'body': body,
-      'tags': tags,
-      'isLocked': isLocked,
-      'handwritingDataJson': handwritingDataJson,
-      'handwritingPreviewBase64': handwritingPreviewBase64,
-      'createdAt': createdAt.toIso8601String(),
-      'updatedAt': updatedAt.toIso8601String(),
+      'tags_json': jsonEncode(tags),
+      'is_locked': isLocked ? 1 : 0,
+      'handwriting_data_json': handwritingDataJson,
+      'handwriting_preview_base64': handwritingPreviewBase64,
+      'created_at': createdAt.toIso8601String(),
+      'updated_at': updatedAt.toIso8601String(),
     };
   }
 
   factory Memo.fromMap(Map<String, dynamic> map) {
-    final legacyBase64 = map['handwritingPreviewBase64'] as String?;
+    final rawTags = map['tags_json'];
+    List<String> parsedTags = [];
+
+    if (rawTags is String && rawTags.isNotEmpty) {
+      try {
+        parsedTags = List<String>.from(jsonDecode(rawTags) as List);
+      } catch (_) {
+        parsedTags = [];
+      }
+    } else if (map['tags'] is List) {
+        // 旧形式にも一応対応
+      parsedTags = List<String>.from(map['tags'] as List);
+    }
 
     return Memo(
       id: map['id'] as String,
       title: (map['title'] ?? '') as String,
       body: (map['body'] ?? '') as String,
-      tags: List<String>.from(map['tags'] ?? const []),
-      isLocked: (map['isLocked'] ?? false) as bool,
-      handwritingDataJson: map['handwritingDataJson'] as String?,
+      tags: parsedTags,
+      isLocked: ((map['is_locked'] ?? map['isLocked'] ?? 0) == 1) ||
+          ((map['isLocked'] ?? false) == true),
+      handwritingDataJson:
+          map['handwriting_data_json'] as String? ??
+          map['handwritingDataJson'] as String?,
       handwritingPreviewBase64:
-          (map['handwritingPreviewBase64'] as String?) ?? legacyBase64,
-      createdAt: DateTime.parse(map['createdAt'] as String),
-      updatedAt: DateTime.parse(map['updatedAt'] as String),
+          map['handwriting_preview_base64'] as String? ??
+          map['handwritingPreviewBase64'] as String?,
+      createdAt: DateTime.parse(
+        (map['created_at'] ?? map['createdAt']) as String,
+      ),
+      updatedAt: DateTime.parse(
+        (map['updated_at'] ?? map['updatedAt']) as String,
+      ),
     );
   }
 
-  String toJson() => jsonEncode(toMap());
+  String toJson() => jsonEncode({
+        'id': id,
+        'title': title,
+        'body': body,
+        'tags': tags,
+        'isLocked': isLocked,
+        'handwritingDataJson': handwritingDataJson,
+        'handwritingPreviewBase64': handwritingPreviewBase64,
+        'createdAt': createdAt.toIso8601String(),
+        'updatedAt': updatedAt.toIso8601String(),
+      });
 
   factory Memo.fromJson(String source) =>
       Memo.fromMap(jsonDecode(source) as Map<String, dynamic>);

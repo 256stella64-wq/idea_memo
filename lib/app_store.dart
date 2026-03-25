@@ -1,12 +1,18 @@
 import 'package:flutter/foundation.dart';
 import 'package:shared_preferences/shared_preferences.dart';
+
+import 'app_database.dart';
 import 'app_models.dart';
 import 'notification_service.dart';
+import 'backup_service.dart';
 
 class AppStore extends ChangeNotifier {
   static const _memosKey = 'memos_v1';
   static const _darkModeKey = 'dark_mode_v1';
   static const _notificationKey = 'notification_enabled_v1';
+  static const _migrationDoneKey = 'memos_sqlite_migrated_v1';
+
+  final AppDatabase _db = AppDatabase.instance;
 
   List<Memo> _memos = [];
   bool _isDarkMode = false;
@@ -22,9 +28,9 @@ class AppStore extends ChangeNotifier {
     _isDarkMode = prefs.getBool(_darkModeKey) ?? false;
     _notificationsEnabled = prefs.getBool(_notificationKey) ?? false;
 
-    final raw = prefs.getStringList(_memosKey) ?? [];
-    _memos = raw.map(Memo.fromJson).toList()
-      ..sort((a, b) => b.updatedAt.compareTo(a.updatedAt));
+    await _migrateLegacyMemosIfNeeded(prefs);
+
+    _memos = await _db.getAllMemos();
 
     if (_notificationsEnabled) {
       await NotificationService.setDailyIdeaReminder(true);
@@ -33,44 +39,64 @@ class AppStore extends ChangeNotifier {
     notifyListeners();
   }
 
-  Future<void> _save() async {
-    final prefs = await SharedPreferences.getInstance();
-    await prefs.setStringList(
-      _memosKey,
-      _memos.map((e) => e.toJson()).toList(),
-    );
+  Future<void> _migrateLegacyMemosIfNeeded(SharedPreferences prefs) async {
+    final migrated = prefs.getBool(_migrationDoneKey) ?? false;
+    if (migrated) return;
+
+    final dbHasData = await _db.hasAnyMemo();
+    if (dbHasData) {
+      await prefs.setBool(_migrationDoneKey, true);
+      return;
+    }
+
+    final raw = prefs.getStringList(_memosKey) ?? [];
+    if (raw.isNotEmpty) {
+      final legacyMemos = raw.map(Memo.fromJson).toList()
+        ..sort((a, b) => b.updatedAt.compareTo(a.updatedAt));
+
+      for (final memo in legacyMemos) {
+        await _db.insertMemo(memo);
+      }
+    }
+
+    await prefs.setBool(_migrationDoneKey, true);
+  }
+
+  Future<void> _reloadMemos() async {
+    _memos = await _db.getAllMemos();
   }
 
   Future<void> addMemo(Memo memo) async {
-    _memos.insert(0, memo);
-    await _save();
+    await _db.insertMemo(memo);
+    await _reloadMemos();
     notifyListeners();
   }
 
   Future<void> updateMemo(Memo memo) async {
-    final index = _memos.indexWhere((m) => m.id == memo.id);
-    if (index == -1) return;
-    _memos[index] = memo.copyWith(updatedAt: DateTime.now());
-    _memos.sort((a, b) => b.updatedAt.compareTo(a.updatedAt));
-    await _save();
+    final updated = memo.copyWith(updatedAt: DateTime.now());
+    await _db.updateMemo(updated);
+    await _reloadMemos();
     notifyListeners();
   }
 
   Future<void> deleteMemo(String id) async {
-    _memos.removeWhere((m) => m.id == id);
-    await _save();
+    await _db.deleteMemo(id);
+    await _reloadMemos();
     notifyListeners();
   }
 
   Future<void> toggleLock(String id) async {
     final index = _memos.indexWhere((m) => m.id == id);
     if (index == -1) return;
+
     final target = _memos[index];
-    _memos[index] = target.copyWith(
+    final updated = target.copyWith(
       isLocked: !target.isLocked,
       updatedAt: DateTime.now(),
     );
-    await _save();
+
+    await _db.updateMemo(updated);
+    await _reloadMemos();
     notifyListeners();
   }
 
@@ -87,6 +113,17 @@ class AppStore extends ChangeNotifier {
     await prefs.setBool(_notificationKey, value);
     await NotificationService.setDailyIdeaReminder(value);
     notifyListeners();
+  }
+
+  Future<void> exportAndShareBackup() async {
+    await BackupService.shareBackupFile();
+  }
+
+  Future<({int insertedCount, int updatedCount})> restoreBackupUpsert() async {
+    final result = await BackupService.restoreFromPickedBackupFileUpsert();
+    await _reloadMemos();
+    notifyListeners();
+    return result;
   }
 
   List<SearchHit> search(String query) {
