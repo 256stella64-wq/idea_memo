@@ -3,6 +3,7 @@ import 'package:flutter/material.dart';
 import 'app_models.dart';
 import 'app_store.dart';
 import 'handwriting_input_screen.dart';
+import 'ad_banner_weight.dart';
 
 class MemoDetailScreen extends StatefulWidget {
   const MemoDetailScreen({
@@ -215,104 +216,108 @@ class _MemoDetailScreenState extends State<MemoDetailScreen> {
           ],
         ),
         body: SafeArea(
-          child: LayoutBuilder(
-            builder: (context, constraints) {
-              final horizontalPadding =
-                  constraints.maxWidth > 700 ? 32.0 : 16.0;
+          child: Padding(
+            padding: const EdgeInsets.only(bottom: 60),
+            child: LayoutBuilder(
+              builder: (context, constraints) {
+                final horizontalPadding =
+                    constraints.maxWidth > 700 ? 32.0 : 16.0;
 
-              return ListView(
-                padding: EdgeInsets.all(horizontalPadding),
-                children: [
-                  TextField(
-                    controller: _titleController,
-                    decoration: const InputDecoration(
-                      labelText: 'タイトル（あとからでもOK）',
-                      border: OutlineInputBorder(),
-                    ),
-                  ),
-                  const SizedBox(height: 12),
-                  TextField(
-                    controller: _bodyController,
-                    focusNode: _bodyFocusNode,
-                    scrollController: _bodyScrollController,
-                    minLines: 8,
-                    maxLines: null,
-                    decoration: const InputDecoration(
-                      labelText: '本文',
-                      alignLabelWithHint: true,
-                      border: OutlineInputBorder(),
-                    ),
-                  ),
-                  const SizedBox(height: 12),
-                  Row(
-                    children: [
-                      Expanded(
-                        child: TextField(
-                          controller: _tagController,
-                          decoration: const InputDecoration(
-                            labelText: 'タグ追加',
-                            border: OutlineInputBorder(),
-                          ),
-                          onSubmitted: (_) => _addTag(),
-                        ),
+                return ListView(
+                  padding: EdgeInsets.all(horizontalPadding),
+                  children: [
+                    TextField(
+                      controller: _titleController,
+                      decoration: const InputDecoration(
+                        labelText: 'タイトル（あとからでもOK）',
+                        border: OutlineInputBorder(),
                       ),
-                      const SizedBox(width: 16),
-                      FilledButton(
-                        onPressed: _addTag,
-                        child: const Text('タグを追加'),
+                    ),
+                    const SizedBox(height: 12),
+                    TextField(
+                      controller: _bodyController,
+                      focusNode: _bodyFocusNode,
+                      scrollController: _bodyScrollController,
+                      minLines: 8,
+                      maxLines: null,
+                      decoration: const InputDecoration(
+                        labelText: '本文',
+                        alignLabelWithHint: true,
+                        border: OutlineInputBorder(),
+                      ),
+                    ),
+                    const SizedBox(height: 12),
+                    Row(
+                      children: [
+                        Expanded(
+                          child: TextField(
+                            controller: _tagController,
+                            decoration: const InputDecoration(
+                              labelText: 'タグ追加',
+                              border: OutlineInputBorder(),
+                            ),
+                            onSubmitted: (_) => _addTag(),
+                          ),
+                        ),
+                        const SizedBox(width: 16),
+                        FilledButton(
+                          onPressed: _addTag,
+                          child: const Text('タグを追加'),
+                        ),
+                      ],
+                    ),
+                    const SizedBox(height: 8),
+                    Wrap(
+                      spacing: 8,
+                      children: _tags
+                          .map(
+                            (tag) => Chip(
+                              label: Text(tag),
+                              onDeleted: () {
+                                setState(() => _tags.remove(tag));
+                              },
+                            ),
+                          )
+                          .toList(),
+                    ),
+                    const SizedBox(height: 16),
+                    Align(
+                      alignment: Alignment.centerRight,
+                      child: FilledButton.icon(
+                        style: FilledButton.styleFrom(
+                          padding: const EdgeInsets.symmetric(
+                            horizontal: 20,
+                            vertical: 16,
+                          ),
+                        ),
+                        onPressed: _save,
+                        icon: const Icon(Icons.save),
+                        label: const Text('変更を保存'),
+                      ),
+                    ),
+                    const SizedBox(height: 16),
+                    FilledButton.icon(
+                      onPressed: _editHandwriting,
+                      icon: const Icon(Icons.draw),
+                      label: const Text('手書きメモを編集'),
+                    ),
+                    if (handwritingPreview != null) ...[
+                      const SizedBox(height: 12),
+                      ClipRRect(
+                        borderRadius: BorderRadius.circular(12),
+                        child: Image.memory(
+                          base64Decode(handwritingPreview),
+                          fit: BoxFit.contain,
+                        ),
                       ),
                     ],
-                  ),
-                  const SizedBox(height: 8),
-                  Wrap(
-                    spacing: 8,
-                    children: _tags
-                        .map(
-                          (tag) => Chip(
-                            label: Text(tag),
-                            onDeleted: () {
-                              setState(() => _tags.remove(tag));
-                            },
-                          ),
-                        )
-                        .toList(),
-                  ),
-                  const SizedBox(height: 16),
-                  Align(
-                    alignment: Alignment.centerRight,
-                    child: FilledButton.icon(
-                      style: FilledButton.styleFrom(
-                        padding: const EdgeInsets.symmetric(
-                          horizontal: 20,
-                          vertical: 16,
-                        ),
-                      ),
-                      onPressed: _save,
-                      icon: const Icon(Icons.save),
-                      label: const Text('変更を保存'),
-                    ),
-                  ),
-                  const SizedBox(height: 16),
-                  FilledButton.icon(
-                    onPressed: _editHandwriting,
-                    icon: const Icon(Icons.draw),
-                    label: const Text('手書きメモを編集'),
-                  ),
-                  if (handwritingPreview != null) ...[
-                    const SizedBox(height: 12),
-                    ClipRRect(
-                      borderRadius: BorderRadius.circular(12),
-                      child: Image.memory(
-                        base64Decode(handwritingPreview),
-                        fit: BoxFit.contain,
-                      ),
-                    ),
                   ],
-                ],
-              );
-            },
+                );
+              },
+            ),
           ),
         ),
+        bottomNavigationBar: const BottomBannerAd(),
       ),
     );
   }

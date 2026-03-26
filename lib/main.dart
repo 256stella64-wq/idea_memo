@@ -4,7 +4,9 @@ import 'dart:convert';
 import 'package:flutter/material.dart';
 import 'package:speech_to_text/speech_to_text.dart';
 import 'package:shared_preferences/shared_preferences.dart';
+import 'package:google_mobile_ads/google_mobile_ads.dart';
 
+import 'rewarded_ad_service.dart';
 import 'app_models.dart';
 import 'app_store.dart';
 import 'handwriting_input_screen.dart';
@@ -14,10 +16,15 @@ import 'notification_service.dart';
 import 'search_screen.dart';
 import 'settings_screen.dart';
 import 'memo_list_screen.dart';
+import 'ad_banner_weight.dart';
 
 Future<void> main() async {
   WidgetsFlutterBinding.ensureInitialized();
   await NotificationService.initialize();
+  await MobileAds.instance.initialize();
+
+  await RewardedAdService.instance.load();
+
 
   final store = AppStore();
   await store.load();
@@ -507,8 +514,12 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver{
               ),
             ],
           ),
+          bottomNavigationBar: const BottomBannerAd(),
           body: SafeArea(
-            child: _buildInputArea(context),
+            child: Padding(
+              padding: const EdgeInsets.only(bottom: 60),
+              child: _buildInputArea(context),
+            ),
           ),
           
         );

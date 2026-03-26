@@ -3,6 +3,7 @@ import 'package:flutter/material.dart';
 import 'app_models.dart';
 import 'app_store.dart';
 import 'memo_detail_screen.dart';
+import 'ad_banner_weight.dart';
 
 enum MemoListViewMode { list, byTag }
 
@@ -255,26 +256,30 @@ class _MemoListScreenState extends State<MemoListScreen> {
             title: const Text('保存済みメモ'),
           ),
           body: SafeArea(
-            child: memos.isEmpty
-                ? const Center(
-                    child: Padding(
-                      padding: EdgeInsets.all(24),
-                      child: Text(
-                        'まだメモがありません。ホーム画面から最初のアイデアを書いてみてください。',
+            child: Padding(
+              padding: const EdgeInsets.only(bottom: 60),
+              child: memos.isEmpty
+                  ? const Center(
+                      child: Padding(
+                        padding: EdgeInsets.all(24),
+                        child: Text(
+                          'まだメモがありません。ホーム画面から最初のアイデアを書いてみてください。',
+                        ),
                       ),
+                    )
+                  : Column(
+                      children: [
+                        _buildViewModeSwitcher(context),
+                        Expanded(
+                          child: _viewMode == MemoListViewMode.list
+                              ? _buildListView(context, memos)
+                              : _buildGroupedByTagView(context, memos),
+                        ),
+                      ],
                     ),
-                  )
-                : Column(
-                    children: [
-                      _buildViewModeSwitcher(context),
-                      Expanded(
-                        child: _viewMode == MemoListViewMode.list
-                            ? _buildListView(context, memos)
-                            : _buildGroupedByTagView(context, memos),
-                      ),
-                    ],
-                  ),
+            ),
           ),
+          bottomNavigationBar: const BottomBannerAd(),
         );
       },
     );
