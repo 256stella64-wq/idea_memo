@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'app_models.dart';
 import 'app_store.dart';
+import 'rewarded_ad_service.dart';
 
 class IdeaToolsScreen extends StatefulWidget {
   const IdeaToolsScreen({super.key, required this.store});
@@ -21,6 +22,9 @@ class _IdeaToolsScreenState extends State<IdeaToolsScreen> {
   List<String> _currentQuestions = [];
   String _generatedIdea = '';
   bool _saving = false;
+
+  int _rewardCredits = 0;
+  bool _isGenerating = false;
 
   static const int _questionCount = 6;
 
@@ -1045,6 +1049,70 @@ ${nextActions.join('\n')}
     }
   }
 
+  Future<void> _generateWithRewardGate() async {
+    if (_isGenerating) return;
+
+    final memo = _selectedMemo;
+    if (memo == null) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('先にメモを選択してください')),
+      );
+      return;
+    }
+
+    final answers = _controllers.map((e) => e.text.trim()).toList();
+    final hasAnyAnswer = answers.any((e) => e.isNotEmpty);
+
+    if (!hasAnyAnswer) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('少なくとも1つは回答を入れてください')),
+      );
+      return;
+    }
+
+    if (_rewardCredits <= 0) {
+      final shown = await RewardedAdService.instance.show(
+        onUserEarnedReward: () {
+          _rewardCredits += 1;
+        },
+      );
+
+      if (!shown) {
+        if (!mounted) return;
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text('広告を読み込み中です。少ししてからもう一度お試しください。'),
+          ),
+        );
+        return;
+      }
+    }
+
+    if (_rewardCredits <= 0) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text('広告の視聴完了が確認できませんでした。もう一度お試しください。'),
+        ),
+      );
+      return;
+    }
+
+    setState(() {
+      _isGenerating = true;
+    });
+
+    try {
+      _rewardCredits -= 1;
+      _generateIdea();
+    } finally {
+      if (!mounted) return;
+      setState(() {
+        _isGenerating = false;
+      });
+    }
+  }
+
   Widget _buildSelectedMemoPreview(Memo memo) {
     final title = memo.title.trim().isNotEmpty ? memo.title.trim() : '無題';
     final preview = memo.body.trim().isNotEmpty ? memo.body.trim() : '本文なし';
@@ -1225,12 +1293,19 @@ ${nextActions.join('\n')}
                       const SizedBox(width: 12),
                       Expanded(
                         child: FilledButton(
-                          onPressed: _generateIdea,
-                          child: const Text('4. アイデア生成'),
+                          onPressed: _isGenerating ? null : _generateWithRewardGate,
+                          child: Text(_isGenerating ? '生成中...' : '4. アイデア生成'),
                         ),
                       ),
                     ],
                   ),
+
+                  const SizedBox(height: 8),
+                  const Text(
+                    'アイデア生成は、広告を視聴すると1回利用できます。',
+                    style: TextStyle(fontSize: 12),
+                  ),
+
                   const SizedBox(height: 20),
                   Text(
                     '生成結果',

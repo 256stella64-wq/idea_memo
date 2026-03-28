@@ -1,4 +1,4 @@
-package com.example.idea_memo
+package com.stella.idea_memo
 
 import io.flutter.embedding.android.FlutterActivity
 
