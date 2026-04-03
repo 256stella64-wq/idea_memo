@@ -1037,6 +1037,9 @@ ${nextActions.join('\n')}
       await widget.store.addMemo(newMemo);
 
       if (!mounted) return;
+      setState(() {
+        _generatedIdea = '';
+      });
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(content: Text('発展アイデアを新しいメモとして保存しました')),
       );
@@ -1070,47 +1073,84 @@ ${nextActions.join('\n')}
       return;
     }
 
-    if (_rewardCredits <= 0) {
-      final shown = await RewardedAdService.instance.show(
-        onUserEarnedReward: () {
-          _rewardCredits += 1;
-        },
-      );
+    Future<void> runGenerate() async {
+      if (!mounted || _isGenerating) return;
 
-      if (!shown) {
+      setState(() {
+        _isGenerating = true;
+      });
+
+      try {
+        _generateIdea();
+      } finally {
         if (!mounted) return;
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(
-            content: Text('広告を読み込み中です。少ししてからもう一度お試しください。'),
-          ),
-        );
-        return;
+        setState(() {
+          _isGenerating = false;
+        });
       }
     }
 
-    if (_rewardCredits <= 0) {
+    if (_rewardCredits > 0) {
+      _rewardCredits -= 1;
+      await runGenerate();
+      return;
+    }
+
+    bool rewardEarned = false;
+
+    final shown = await RewardedAdService.instance.show(
+      onUserEarnedReward: () async {
+        rewardEarned = true;
+        if (!mounted) return;
+        await runGenerate();
+      },
+    );
+
+    if (!shown) {
       if (!mounted) return;
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(
-          content: Text('広告の視聴完了が確認できませんでした。もう一度お試しください。'),
+          content: Text('広告を読み込み中です。少ししてからもう一度お試しください。'),
         ),
       );
       return;
     }
 
-    setState(() {
-      _isGenerating = true;
-    });
-
-    try {
-      _rewardCredits -= 1;
-      _generateIdea();
-    } finally {
-      if (!mounted) return;
-      setState(() {
-        _isGenerating = false;
-      });
+    if (!rewardEarned && mounted) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text('広告の視聴完了が確認できませんでした。もう一度お試しください。'),
+        ),
+      );
     }
+  }
+
+  Future<bool> _confirmBeforeLeave() async {
+    if (_generatedIdea.trim().isEmpty) {
+      return true;
+    }
+
+    final shouldLeave = await showDialog<bool>(
+      context: context,
+      builder: (_) => AlertDialog(
+        title: const Text('前の画面に戻りますか？'),
+        content: const Text(
+          '生成したアイデアが未保存です。\nこのまま戻ると内容が失われる可能性があります。',
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(context, false),
+            child: const Text('キャンセル'),
+          ),
+          FilledButton(
+            onPressed: () => Navigator.pop(context, true),
+            child: const Text('戻る'),
+          ),
+        ],
+      ),
+    );
+
+    return shouldLeave ?? false;
   }
 
   Widget _buildSelectedMemoPreview(Memo memo) {
@@ -1191,145 +1231,158 @@ ${nextActions.join('\n')}
   Widget build(BuildContext context) {
     final memos = widget.store.memos;
 
-    return Scaffold(
-      appBar: AppBar(title: const Text('アイデア拡張')),
-      body: SafeArea(
-        child: memos.isEmpty
-            ? const Center(
-                child: Padding(
-                  padding: EdgeInsets.all(24),
-                  child: Text('メモがまだありません。先にメモを作成してください。'),
-                ),
-              )
-            : ListView(
-                padding: const EdgeInsets.all(16),
-                children: [
-                  Text(
-                    '1. メモを選ぶ',
-                    style: Theme.of(context).textTheme.titleLarge,
+    return PopScope(
+      canPop: _generatedIdea.trim().isEmpty,
+      onPopInvoked: (didPop) async {
+        if (didPop) return;
+
+        final shouldLeave = await _confirmBeforeLeave();
+        if (!mounted) return;
+
+        if (shouldLeave) {
+          Navigator.of(context).pop();
+        }
+      },
+      child: Scaffold(
+        appBar: AppBar(title: const Text('アイデア拡張')),
+        body: SafeArea(
+          child: memos.isEmpty
+              ? const Center(
+                  child: Padding(
+                    padding: EdgeInsets.all(24),
+                    child: Text('メモがまだありません。先にメモを作成してください。'),
                   ),
-                  const SizedBox(height: 12),
-                  DropdownButtonFormField<Memo>(
-                    value: memos.contains(_selectedMemo) ? _selectedMemo : null,
-                    items: memos
-                        .map(
-                          (m) => DropdownMenuItem(
-                            value: m,
-                            child: Text(
-                              m.title.trim().isEmpty ? '無題' : m.title.trim(),
-                              overflow: TextOverflow.ellipsis,
+                )
+              : ListView(
+                  padding: const EdgeInsets.all(16),
+                  children: [
+                    Text(
+                      '1. メモを選ぶ',
+                      style: Theme.of(context).textTheme.titleLarge,
+                    ),
+                    const SizedBox(height: 12),
+                    DropdownButtonFormField<Memo>(
+                      value: memos.contains(_selectedMemo) ? _selectedMemo : null,
+                      items: memos
+                          .map(
+                            (m) => DropdownMenuItem(
+                              value: m,
+                              child: Text(
+                                m.title.trim().isEmpty ? '無題' : m.title.trim(),
+                                overflow: TextOverflow.ellipsis,
+                              ),
                             ),
+                          )
+                          .toList(),
+                      onChanged: (value) {
+                        _selectedMemo = value;
+                        _updateQuestionsForSelectedMemo(clearAnswers: true);
+                      },
+                      decoration: const InputDecoration(
+                        border: OutlineInputBorder(),
+                        labelText: '元にするメモ',
+                      ),
+                    ),
+                    const SizedBox(height: 12),
+                    if (_selectedMemo != null) _buildSelectedMemoPreview(_selectedMemo!),
+                    const SizedBox(height: 20),
+                    Text(
+                      '2. 質問タイプを確認・変更する',
+                      style: Theme.of(context).textTheme.titleLarge,
+                    ),
+                    const SizedBox(height: 8),
+                    Text(
+                      '自動判定されたカテゴリを、必要なら手動で変更できます。',
+                      style: Theme.of(context).textTheme.bodySmall,
+                    ),
+                    const SizedBox(height: 12),
+                    DropdownButtonFormField<String>(
+                      value: _allCategoryLabels.contains(_currentCategoryLabel)
+                          ? _currentCategoryLabel
+                          : _genericCategory.label,
+                      items: _allCategoryLabels
+                          .map(
+                            (label) => DropdownMenuItem<String>(
+                              value: label,
+                              child: Text(label),
+                            ),
+                          )
+                          .toList(),
+                      onChanged: _onCategoryChanged,
+                      decoration: const InputDecoration(
+                        border: OutlineInputBorder(),
+                        labelText: '質問タイプ',
+                      ),
+                    ),
+                    const SizedBox(height: 12),
+                    Row(
+                      children: [
+                        Expanded(
+                          child: Text(
+                            '3. 深掘り質問に答える',
+                            style: Theme.of(context).textTheme.titleLarge,
                           ),
-                        )
-                        .toList(),
-                    onChanged: (value) {
-                      _selectedMemo = value;
-                      _updateQuestionsForSelectedMemo(clearAnswers: true);
-                    },
-                    decoration: const InputDecoration(
-                      border: OutlineInputBorder(),
-                      labelText: '元にするメモ',
+                        ),
+                        TextButton.icon(
+                          onPressed: _fillHintsFromMemo,
+                          icon: const Icon(Icons.auto_fix_high),
+                          label: const Text('下書き補助'),
+                        ),
+                      ],
                     ),
-                  ),
-                  const SizedBox(height: 12),
-                  if (_selectedMemo != null) _buildSelectedMemoPreview(_selectedMemo!),
-                  const SizedBox(height: 20),
-                  Text(
-                    '2. 質問タイプを確認・変更する',
-                    style: Theme.of(context).textTheme.titleLarge,
-                  ),
-                  const SizedBox(height: 8),
-                  Text(
-                    '自動判定されたカテゴリを、必要なら手動で変更できます。',
-                    style: Theme.of(context).textTheme.bodySmall,
-                  ),
-                  const SizedBox(height: 12),
-                  DropdownButtonFormField<String>(
-                    value: _allCategoryLabels.contains(_currentCategoryLabel)
-                        ? _currentCategoryLabel
-                        : _genericCategory.label,
-                    items: _allCategoryLabels
-                        .map(
-                          (label) => DropdownMenuItem<String>(
-                            value: label,
-                            child: Text(label),
+                    const SizedBox(height: 8),
+                    Chip(label: Text(_currentCategoryLabel)),
+                    const SizedBox(height: 12),
+                    ...List.generate(_currentQuestions.length, _buildQuestionCard),
+                    Row(
+                      children: [
+                        Expanded(
+                          child: OutlinedButton(
+                            onPressed: _clearAnswers,
+                            child: const Text('入力をクリア'),
                           ),
-                        )
-                        .toList(),
-                    onChanged: _onCategoryChanged,
-                    decoration: const InputDecoration(
-                      border: OutlineInputBorder(),
-                      labelText: '質問タイプ',
+                        ),
+                        const SizedBox(width: 12),
+                        Expanded(
+                          child: FilledButton(
+                            onPressed: _isGenerating ? null : _generateWithRewardGate,
+                            child: Text(_isGenerating ? '生成中...' : '4. アイデア生成'),
+                          ),
+                        ),
+                      ],
                     ),
-                  ),
-                  const SizedBox(height: 12),
-                  Row(
-                    children: [
-                      Expanded(
-                        child: Text(
-                          '3. 深掘り質問に答える',
-                          style: Theme.of(context).textTheme.titleLarge,
-                        ),
-                      ),
-                      TextButton.icon(
-                        onPressed: _fillHintsFromMemo,
-                        icon: const Icon(Icons.auto_fix_high),
-                        label: const Text('下書き補助'),
-                      ),
-                    ],
-                  ),
-                  const SizedBox(height: 8),
-                  Chip(label: Text(_currentCategoryLabel)),
-                  const SizedBox(height: 12),
-                  ...List.generate(_currentQuestions.length, _buildQuestionCard),
-                  Row(
-                    children: [
-                      Expanded(
-                        child: OutlinedButton(
-                          onPressed: _clearAnswers,
-                          child: const Text('入力をクリア'),
-                        ),
-                      ),
-                      const SizedBox(width: 12),
-                      Expanded(
-                        child: FilledButton(
-                          onPressed: _isGenerating ? null : _generateWithRewardGate,
-                          child: Text(_isGenerating ? '生成中...' : '4. アイデア生成'),
-                        ),
-                      ),
-                    ],
-                  ),
 
-                  const SizedBox(height: 8),
-                  const Text(
-                    'アイデア生成は、広告を視聴すると1回利用できます。',
-                    style: TextStyle(fontSize: 12),
-                  ),
-
-                  const SizedBox(height: 20),
-                  Text(
-                    '生成結果',
-                    style: Theme.of(context).textTheme.titleLarge,
-                  ),
-                  const SizedBox(height: 12),
-                  Card(
-                    child: Padding(
-                      padding: const EdgeInsets.all(16),
-                      child: _generatedIdea.trim().isEmpty
-                          ? const Text(
-                              '回答を入れて「アイデア生成」を押すと、ここに発展案が表示されます。',
-                            )
-                          : SelectableText(_generatedIdea),
+                    const SizedBox(height: 8),
+                    const Text(
+                      'アイデア生成は、広告を視聴すると1回利用できます。',
+                      style: TextStyle(fontSize: 12),
                     ),
-                  ),
-                  const SizedBox(height: 12),
-                  FilledButton.icon(
-                    onPressed: _saving ? null : _saveGeneratedIdea,
-                    icon: const Icon(Icons.save),
-                    label: Text(_saving ? '保存中...' : '5. 新しいメモとして保存'),
-                  ),
-                ],
-              ),
+
+                    const SizedBox(height: 20),
+                    Text(
+                      '生成結果',
+                      style: Theme.of(context).textTheme.titleLarge,
+                    ),
+                    const SizedBox(height: 12),
+                    Card(
+                      child: Padding(
+                        padding: const EdgeInsets.all(16),
+                        child: _generatedIdea.trim().isEmpty
+                            ? const Text(
+                                '回答を入れて「アイデア生成」を押すと、ここに発展案が表示されます。',
+                              )
+                            : SelectableText(_generatedIdea),
+                      ),
+                    ),
+                    const SizedBox(height: 12),
+                    FilledButton.icon(
+                      onPressed: _saving ? null : _saveGeneratedIdea,
+                      icon: const Icon(Icons.save),
+                      label: Text(_saving ? '保存中...' : '5. 新しいメモとして保存'),
+                    ),
+                  ],
+                ),
+        ),
       ),
     );
   }

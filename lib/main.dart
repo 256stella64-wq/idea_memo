@@ -441,6 +441,7 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver{
     ScaffoldMessenger.of(context).showSnackBar(
       SnackBar(
         content: const Text('メモを保存しました'),
+        duration: const Duration(seconds: 3),
         action: SnackBarAction(
           label: '一覧を見る',
           onPressed: () {
@@ -670,13 +671,16 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver{
                   ],
                 ),
                 const SizedBox(height: 20),
-                Align(
-                  alignment: Alignment.centerRight,
+                SizedBox(
+                  width: double.infinity,
                   child: FilledButton.icon(
                     style: FilledButton.styleFrom(
                       padding: const EdgeInsets.symmetric(
                         horizontal: 20,
                         vertical: 16,
+                      ),
+                      shape: RoundedRectangleBorder(
+                        borderRadius: BorderRadius.circular(16),
                       ),
                     ),
                     onPressed: _saveMemo,

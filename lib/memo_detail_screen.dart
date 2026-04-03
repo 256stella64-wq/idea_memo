@@ -281,13 +281,16 @@ class _MemoDetailScreenState extends State<MemoDetailScreen> {
                           .toList(),
                     ),
                     const SizedBox(height: 16),
-                    Align(
-                      alignment: Alignment.centerRight,
+                    SizedBox(
+                      width: double.infinity,
                       child: FilledButton.icon(
                         style: FilledButton.styleFrom(
                           padding: const EdgeInsets.symmetric(
                             horizontal: 20,
-                            vertical: 16,
+                            vertical: 18,
+                          ),
+                          shape: RoundedRectangleBorder(
+                            borderRadius: BorderRadius.circular(16),
                           ),
                         ),
                         onPressed: _save,
@@ -295,11 +298,23 @@ class _MemoDetailScreenState extends State<MemoDetailScreen> {
                         label: const Text('変更を保存'),
                       ),
                     ),
-                    const SizedBox(height: 16),
-                    FilledButton.icon(
-                      onPressed: _editHandwriting,
-                      icon: const Icon(Icons.draw),
-                      label: const Text('手書きメモを編集'),
+                    const SizedBox(height: 12),
+                    SizedBox(
+                      width: double.infinity,
+                      child: OutlinedButton.icon(
+                        style: OutlinedButton.styleFrom(
+                          padding: const EdgeInsets.symmetric(
+                            horizontal: 20,
+                            vertical: 16,
+                          ),
+                          shape: RoundedRectangleBorder(
+                            borderRadius: BorderRadius.circular(16),
+                          ),
+                        ),
+                        onPressed: _editHandwriting,
+                        icon: const Icon(Icons.draw),
+                        label: const Text('手書きメモを編集'),
+                      ),
                     ),
                     if (handwritingPreview != null) ...[
                       const SizedBox(height: 12),
