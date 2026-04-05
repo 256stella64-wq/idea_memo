@@ -55,21 +55,11 @@ class IdeaMemoApp extends StatelessWidget {
   }
 
   ThemeData _buildTheme(Brightness brightness) {
-    final base = ThemeData(
+    return ThemeData(
       useMaterial3: true,
       brightness: brightness,
       colorSchemeSeed: Colors.indigo,
-    );
-
-    return base.copyWith(
-      textTheme: base.textTheme.apply(fontFamilyFallback: const [
-        'Noto Sans JP',
-        'Noto Sans CJK JP',
-        'Hiragino Sans',
-        'Yu Gothic',
-        'Meiryo',
-        'sans-serif',
-      ]),
+      fontFamily: 'NotoSansJP',
     );
   }
 }
