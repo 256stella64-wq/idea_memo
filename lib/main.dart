@@ -128,6 +128,7 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver{
     });
   }
 
+
   Future<void> _persistDraft() async {
     final prefs = await SharedPreferences.getInstance();
 
@@ -392,9 +393,9 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver{
     final title = _titleController.text.trim();
     final now = DateTime.now();
 
-    if (body.isEmpty && _draftHandwritingDataJson == null) {
+    if (body.isEmpty &&_draftHandwritingDataJson == null) {
       ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('本文か手書きのどちらかを入力してください')),
+        const SnackBar(content: Text('本文・手書き・添付のいずれかを入力してください')),
       );
       return;
     }
@@ -428,10 +429,12 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver{
     if (!mounted) return;
     _focusNode.requestFocus();
 
-    ScaffoldMessenger.of(context).showSnackBar(
+    final messenger = ScaffoldMessenger.of(context);
+
+    messenger.showSnackBar(
       SnackBar(
         content: const Text('メモを保存しました'),
-        duration: const Duration(seconds: 3),
+        duration: const Duration(seconds: 10), 
         action: SnackBarAction(
           label: '一覧を見る',
           onPressed: () {
@@ -445,6 +448,10 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver{
         ),
       ),
     );
+
+    Future.delayed(const Duration(seconds: 3), () {
+      messenger.hideCurrentSnackBar();
+    });
   }
 
   @override
@@ -593,7 +600,9 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver{
                     border: OutlineInputBorder(),
                   ),
                 ),
+              
                 const SizedBox(height: 12),
+
                 Row(
                   children: [
                     Expanded(
@@ -721,5 +730,6 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver{
       ],
     );
   }
+  
 
 }

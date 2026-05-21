@@ -90,6 +90,7 @@ class _MemoDetailScreenState extends State<MemoDetailScreen> {
     }
   }
 
+
   Future<void> _save() async {
     final updated = _memo.copyWith(
       title: _titleController.text.trim(),
@@ -148,6 +149,7 @@ class _MemoDetailScreenState extends State<MemoDetailScreen> {
         _tags.length == _memo.tags.length &&
         _tags.every((tag) => _memo.tags.contains(tag));
 
+
     return currentTitle != _memo.title ||
         currentBody != _memo.body ||
         !sameTags;
@@ -176,6 +178,7 @@ class _MemoDetailScreenState extends State<MemoDetailScreen> {
 
     return shouldLeave ?? false;
   }
+
 
   @override
   Widget build(BuildContext context) {

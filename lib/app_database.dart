@@ -22,7 +22,7 @@ class AppDatabase {
 
     return openDatabase(
       path,
-      version: 1,
+      version: 2,
       onCreate: (db, version) async {
         await db.execute('''
           CREATE TABLE memos (
@@ -33,10 +33,18 @@ class AppDatabase {
             is_locked INTEGER NOT NULL DEFAULT 0,
             handwriting_data_json TEXT,
             handwriting_preview_base64 TEXT,
+            attachments_json TEXT NOT NULL DEFAULT '[]',
             created_at TEXT NOT NULL,
             updated_at TEXT NOT NULL
           )
         ''');
+      },
+      onUpgrade: (db, oldVersion, newVersion) async {
+        if (oldVersion < 2) {
+          await db.execute(
+            "ALTER TABLE memos ADD COLUMN attachments_json TEXT NOT NULL DEFAULT '[]'",
+          );
+        }
       },
     );
   }

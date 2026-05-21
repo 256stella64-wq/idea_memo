@@ -73,7 +73,6 @@ class Memo {
         parsedTags = [];
       }
     } else if (map['tags'] is List) {
-        // 旧形式にも一応対応
       parsedTags = List<String>.from(map['tags'] as List);
     }
 

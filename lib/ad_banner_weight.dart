@@ -40,8 +40,8 @@ class _BottomBannerAdState extends State<BottomBannerAd> {
     final banner = BannerAd(
       size: adSize,
       adUnitId: Platform.isAndroid
-          ? 'ca-app-pub-3940256099942544/6300978111' // Android test
-          : 'ca-app-pub-3940256099942544/2934735716', // iOS test
+          ? 'ca-app-pub-5237165086892509/6801745470' // Android test
+          : 'ca-app-pub-5237165086892509/6801745470', // iOS test
       request: const AdRequest(),
       listener: BannerAdListener(
         onAdLoaded: (ad) {
